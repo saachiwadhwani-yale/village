@@ -1,0 +1,588 @@
+{
+  "before": {
+    "summary": {
+      "trials": 4,
+      "per_request": {
+        "input_tokens": 5253,
+        "cached_tokens": 0,
+        "cached_share": 0.0,
+        "output_tokens": 437,
+        "cost_usd": 0.000744,
+        "seconds": 96.03
+      },
+      "by_agent": {
+        "intake": {
+          "runs": 4,
+          "requests": 4,
+          "input": 4584,
+          "cached": 0,
+          "output": 288,
+          "cost": 0.000602,
+          "input_per_run": 1146,
+          "cached_share": 0.0
+        },
+        "availability": {
+          "runs": 8,
+          "requests": 16,
+          "input": 13564,
+          "cached": 0,
+          "output": 1347,
+          "cost": 0.00203,
+          "input_per_run": 1696,
+          "cached_share": 0.0
+        },
+        "reply": {
+          "runs": 4,
+          "requests": 4,
+          "input": 2864,
+          "cached": 0,
+          "output": 114,
+          "cost": 0.000343,
+          "input_per_run": 716,
+          "cached_share": 0.0
+        }
+      },
+      "first_trial_cached_tokens": 0,
+      "later_trials_cached_tokens": [
+        0,
+        0,
+        0
+      ],
+      "verdicts": [
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        }
+      ],
+      "all_booked": true
+    },
+    "trials": [
+      {
+        "seconds": 37.8,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1146,
+            "cached_tokens": 0,
+            "output_tokens": 51,
+            "cost_usd": 0.00014010000000000002,
+            "duration_ms": 3324
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 1715,
+            "cached_tokens": 0,
+            "output_tokens": 168,
+            "cost_usd": 0.0002555,
+            "duration_ms": 22321
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 1676,
+            "cached_tokens": 0,
+            "output_tokens": 135,
+            "cost_usd": 0.00023510000000000002,
+            "duration_ms": 31877
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 716,
+            "cached_tokens": 0,
+            "output_tokens": 32,
+            "cost_usd": 8.760000000000002e-05,
+            "duration_ms": 2542
+          }
+        ]
+      },
+      {
+        "seconds": 79.67,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1146,
+            "cached_tokens": 0,
+            "output_tokens": 105,
+            "cost_usd": 0.00016710000000000002,
+            "duration_ms": 3663
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 1676,
+            "cached_tokens": 0,
+            "output_tokens": 156,
+            "cost_usd": 0.0002456,
+            "duration_ms": 4654
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 1715,
+            "cached_tokens": 0,
+            "output_tokens": 196,
+            "cost_usd": 0.0002695,
+            "duration_ms": 62507
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 716,
+            "cached_tokens": 0,
+            "output_tokens": 32,
+            "cost_usd": 8.760000000000002e-05,
+            "duration_ms": 13429
+          }
+        ]
+      },
+      {
+        "seconds": 93.31,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1146,
+            "cached_tokens": 0,
+            "output_tokens": 81,
+            "cost_usd": 0.00015510000000000003,
+            "duration_ms": 15519
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 1676,
+            "cached_tokens": 0,
+            "output_tokens": 151,
+            "cost_usd": 0.00024310000000000003,
+            "duration_ms": 21670
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 1715,
+            "cached_tokens": 0,
+            "output_tokens": 181,
+            "cost_usd": 0.000262,
+            "duration_ms": 65616
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 716,
+            "cached_tokens": 0,
+            "output_tokens": 18,
+            "cost_usd": 8.060000000000001e-05,
+            "duration_ms": 12100
+          }
+        ]
+      },
+      {
+        "seconds": 173.34,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1146,
+            "cached_tokens": 0,
+            "output_tokens": 51,
+            "cost_usd": 0.00014010000000000002,
+            "duration_ms": 150958
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 1676,
+            "cached_tokens": 0,
+            "output_tokens": 163,
+            "cost_usd": 0.00024910000000000004,
+            "duration_ms": 6510
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 1715,
+            "cached_tokens": 0,
+            "output_tokens": 197,
+            "cost_usd": 0.00027,
+            "duration_ms": 9282
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 716,
+            "cached_tokens": 0,
+            "output_tokens": 32,
+            "cost_usd": 8.760000000000002e-05,
+            "duration_ms": 13029
+          }
+        ]
+      }
+    ],
+    "prices_per_million": {
+      "input": 0.1,
+      "cached_input": 0.01,
+      "output": 0.5
+    }
+  },
+  "after_examples": {
+    "summary": {
+      "trials": 4,
+      "per_request": {
+        "input_tokens": 8753,
+        "cached_tokens": 7620,
+        "cached_share": 0.871,
+        "output_tokens": 429,
+        "cost_usd": 0.000404,
+        "seconds": 49.38
+      },
+      "by_agent": {
+        "intake": {
+          "runs": 4,
+          "requests": 4,
+          "input": 6528,
+          "cached": 4518,
+          "output": 204,
+          "cost": 0.000348,
+          "input_per_run": 1632,
+          "cached_share": 0.692
+        },
+        "availability": {
+          "runs": 8,
+          "requests": 16,
+          "input": 23260,
+          "cached": 21244,
+          "output": 1413,
+          "cost": 0.001121,
+          "input_per_run": 2908,
+          "cached_share": 0.913
+        },
+        "reply": {
+          "runs": 4,
+          "requests": 4,
+          "input": 5224,
+          "cached": 4720,
+          "output": 100,
+          "cost": 0.000148,
+          "input_per_run": 1306,
+          "cached_share": 0.904
+        }
+      },
+      "first_trial_cached_tokens": 7997,
+      "later_trials_cached_tokens": [
+        7997,
+        6491,
+        7997
+      ],
+      "verdicts": [
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        }
+      ],
+      "all_booked": true
+    },
+    "trials": [
+      {
+        "seconds": 88.81,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1632,
+            "cached_tokens": 1506,
+            "output_tokens": 51,
+            "cost_usd": 5.3160000000000006e-05,
+            "duration_ms": 19924
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 2927,
+            "cached_tokens": 2675,
+            "output_tokens": 240,
+            "cost_usd": 0.00017194999999999998,
+            "duration_ms": 45367
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 2888,
+            "cached_tokens": 2636,
+            "output_tokens": 105,
+            "cost_usd": 0.00010406,
+            "duration_ms": 66019
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 1306,
+            "cached_tokens": 1180,
+            "output_tokens": 32,
+            "cost_usd": 4.0400000000000006e-05,
+            "duration_ms": 2797
+          }
+        ]
+      },
+      {
+        "seconds": 27.5,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1632,
+            "cached_tokens": 1506,
+            "output_tokens": 51,
+            "cost_usd": 5.3160000000000006e-05,
+            "duration_ms": 17167
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 2888,
+            "cached_tokens": 2636,
+            "output_tokens": 105,
+            "cost_usd": 0.00010406,
+            "duration_ms": 5822
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 2927,
+            "cached_tokens": 2675,
+            "output_tokens": 202,
+            "cost_usd": 0.00015294999999999998,
+            "duration_ms": 7651
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 1306,
+            "cached_tokens": 1180,
+            "output_tokens": 32,
+            "cost_usd": 4.0400000000000006e-05,
+            "duration_ms": 2601
+          }
+        ]
+      },
+      {
+        "seconds": 14.91,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1632,
+            "cached_tokens": 0,
+            "output_tokens": 51,
+            "cost_usd": 0.0001887,
+            "duration_ms": 5166
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 2927,
+            "cached_tokens": 2675,
+            "output_tokens": 231,
+            "cost_usd": 0.00016744999999999998,
+            "duration_ms": 5525
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 2888,
+            "cached_tokens": 2636,
+            "output_tokens": 105,
+            "cost_usd": 0.00010406,
+            "duration_ms": 6971
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 1306,
+            "cached_tokens": 1180,
+            "output_tokens": 18,
+            "cost_usd": 3.3400000000000005e-05,
+            "duration_ms": 2692
+          }
+        ]
+      },
+      {
+        "seconds": 66.31,
+        "status": "booked",
+        "verdicts": {
+          "diego": "maybe",
+          "hannah": "available",
+          "mei": "maybe",
+          "sam": "unavailable"
+        },
+        "runs": [
+          {
+            "agent": "intake",
+            "subject": "priya",
+            "requests": 1,
+            "input_tokens": 1632,
+            "cached_tokens": 1506,
+            "output_tokens": 51,
+            "cost_usd": 5.3160000000000006e-05,
+            "duration_ms": 1671
+          },
+          {
+            "agent": "availability",
+            "subject": "diego",
+            "requests": 2,
+            "input_tokens": 2888,
+            "cached_tokens": 2636,
+            "output_tokens": 135,
+            "cost_usd": 0.00011906,
+            "duration_ms": 8981
+          },
+          {
+            "agent": "availability",
+            "subject": "mei",
+            "requests": 2,
+            "input_tokens": 2927,
+            "cached_tokens": 2675,
+            "output_tokens": 290,
+            "cost_usd": 0.00019695,
+            "duration_ms": 60238
+          },
+          {
+            "agent": "reply",
+            "subject": "diego",
+            "requests": 1,
+            "input_tokens": 1306,
+            "cached_tokens": 1180,
+            "output_tokens": 18,
+            "cost_usd": 3.3400000000000005e-05,
+            "duration_ms": 4326
+          }
+        ]
+      }
+    ],
+    "prices_per_million": {
+      "input": 0.1,
+      "cached_input": 0.01,
+      "output": 0.5
+    }
+  }
+}

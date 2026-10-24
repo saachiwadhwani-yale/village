@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Working database (rebuilt from data/seed on first run)
+data/village.db
+data/village.db-journal
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node / Vite (frontend/dist is committed on purpose so the app runs without Node)
+frontend/node_modules/
+*.tsbuildinfo
+
+# Logs from local runs
+output/audit_log.jsonl
+
+# OS / editor
+.DS_Store
+.claude/settings.local.json
+data/village.db.tmp

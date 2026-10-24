@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "village",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "backend/main.py"
+      ],
+      "port": 8000,
+      "autoPort": true
+    },
+    {
+      "name": "village-preview-no-slack",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "SLACK_BOT_TOKEN=",
+        "SLACK_APP_TOKEN=",
+        "python3",
+        "backend/main.py"
+      ],
+      "port": 8000,
+      "autoPort": true
+    }
+  ]
+}

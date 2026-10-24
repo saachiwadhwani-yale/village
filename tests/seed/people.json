@@ -1,0 +1,318 @@
+{
+  "_note": "Made-up SOM classmates for the demo. Calendars point at files in data/seed/calendars.",
+  "users": [
+    {
+      "id": "priya",
+      "name": "Priya Raman",
+      "program": "MBA '27",
+      "color": "#c2410c",
+      "is_parent": true,
+      "help_count_week": 0,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "priya_google.ics"
+        }
+      ],
+      "help_count_total": 3
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus Bell",
+      "program": "MBA '28",
+      "color": "#7c3aed",
+      "is_parent": true,
+      "help_count_week": 0,
+      "availability_text": "",
+      "calendars": [],
+      "help_count_total": 0
+    },
+    {
+      "id": "sam",
+      "name": "Sam Okafor",
+      "program": "MBA '27",
+      "color": "#0369a1",
+      "is_parent": false,
+      "help_count_week": 0,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Yale Outlook",
+          "file": "sam_yale_outlook.ics"
+        },
+        {
+          "label": "Personal Google",
+          "file": "sam_personal_google.ics"
+        }
+      ],
+      "help_count_total": 1
+    },
+    {
+      "id": "jordan",
+      "name": "Jordan Lee",
+      "program": "MBA '28",
+      "color": "#047857",
+      "is_parent": false,
+      "help_count_week": 1,
+      "availability_text": "Mornings before 10 are easiest for me.",
+      "availability_parsed": {
+        "slots": [
+          {
+            "day": "Mon",
+            "start": "07:00",
+            "end": "10:00",
+            "kind": "free"
+          },
+          {
+            "day": "Tue",
+            "start": "07:00",
+            "end": "10:00",
+            "kind": "free"
+          },
+          {
+            "day": "Wed",
+            "start": "07:00",
+            "end": "10:00",
+            "kind": "free"
+          },
+          {
+            "day": "Thu",
+            "start": "07:00",
+            "end": "10:00",
+            "kind": "free"
+          },
+          {
+            "day": "Fri",
+            "start": "07:00",
+            "end": "10:00",
+            "kind": "free"
+          }
+        ],
+        "caveats": [
+          "Says mornings are easiest, not that other times are off-limits."
+        ],
+        "summary": "Prefers weekday mornings before 10am."
+      },
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "jordan_google.ics"
+        }
+      ],
+      "help_count_total": 4
+    },
+    {
+      "id": "aisha",
+      "name": "Aisha Khan",
+      "program": "MBA '27",
+      "color": "#be185d",
+      "is_parent": false,
+      "help_count_week": 0,
+      "availability_text": "No calendar link, sorry! I'm usually free Tue/Thu afternoons after 1. Mon/Wed I'm in class until 11:30. Fridays are a no. Thursdays 4-6 I sometimes have recruiting events but ask anyway.",
+      "availability_parsed": {
+        "slots": [
+          {
+            "day": "Tue",
+            "start": "13:00",
+            "end": "18:00",
+            "kind": "free"
+          },
+          {
+            "day": "Thu",
+            "start": "13:00",
+            "end": "18:00",
+            "kind": "free"
+          },
+          {
+            "day": "Mon",
+            "start": "08:00",
+            "end": "11:30",
+            "kind": "busy"
+          },
+          {
+            "day": "Wed",
+            "start": "08:00",
+            "end": "11:30",
+            "kind": "busy"
+          },
+          {
+            "day": "Fri",
+            "start": "07:00",
+            "end": "21:00",
+            "kind": "busy"
+          }
+        ],
+        "caveats": [
+          "Thursdays 4-6pm sometimes has recruiting events, but wants to be asked anyway."
+        ],
+        "summary": "Free Tue/Thu afternoons after 1pm; in class Mon/Wed mornings; not available Fridays."
+      },
+      "calendars": [],
+      "help_count_total": 2
+    },
+    {
+      "id": "diego",
+      "name": "Diego Martinez",
+      "program": "MBA '28",
+      "color": "#a16207",
+      "is_parent": false,
+      "help_count_week": 0,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Yale Outlook",
+          "file": "diego_yale_outlook.ics"
+        }
+      ],
+      "help_count_total": 0
+    },
+    {
+      "id": "mei",
+      "name": "Mei Chen",
+      "program": "MBA '27",
+      "color": "#0f766e",
+      "is_parent": false,
+      "help_count_week": 1,
+      "availability_text": "Happy to help any time I'm not in class or at my RA job. I'll skip a club meeting for this.",
+      "availability_parsed": {
+        "slots": [],
+        "caveats": [
+          "Will skip club meetings to help.",
+          "Not available during class or RA shifts."
+        ],
+        "summary": "Available outside class and RA shifts; will skip club meetings."
+      },
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "mei_google.ics"
+        },
+        {
+          "label": "Research lab",
+          "file": "mei_lab.ics"
+        }
+      ],
+      "help_count_total": 6
+    },
+    {
+      "id": "tom",
+      "name": "Tom Fischer",
+      "program": "MBA '28",
+      "color": "#4d7c0f",
+      "is_parent": false,
+      "help_count_week": 0,
+      "availability_text": "Free most afternoons.",
+      "availability_parsed": {
+        "slots": [],
+        "caveats": [
+          "Says most afternoons are free, no specific days."
+        ],
+        "summary": "Free most afternoons."
+      },
+      "calendars": [],
+      "help_count_total": 0
+    },
+    {
+      "id": "hannah",
+      "name": "Hannah Weiss",
+      "program": "MBA '27",
+      "color": "#b91c1c",
+      "is_parent": false,
+      "help_count_week": 3,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "hannah_google.ics"
+        }
+      ],
+      "help_count_total": 9
+    }
+  ],
+  "kids": [
+    {
+      "id": "arjun",
+      "parent_id": "priya",
+      "name": "Arjun",
+      "age": 4,
+      "notes": "Peanut allergy - EpiPen is in the front pocket of his backpack. Loves dinosaurs and Bluey. Crackers and fruit in the bag are fine."
+    },
+    {
+      "id": "lily",
+      "parent_id": "marcus",
+      "name": "Lily",
+      "age": 2,
+      "notes": "Diaper bag has everything. Usually naps in the stroller if you walk around."
+    }
+  ],
+  "village": [
+    {
+      "parent_id": "priya",
+      "villager_id": "sam",
+      "status": "accepted",
+      "rank": 1
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "jordan",
+      "status": "accepted",
+      "rank": 2
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "aisha",
+      "status": "accepted",
+      "rank": 3
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "diego",
+      "status": "accepted",
+      "rank": 4
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "mei",
+      "status": "accepted",
+      "rank": 5
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "tom",
+      "status": "pending",
+      "rank": 6
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "hannah",
+      "status": "accepted",
+      "rank": 7
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "aisha",
+      "status": "accepted",
+      "rank": 1
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "priya",
+      "status": "accepted",
+      "rank": 2
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "diego",
+      "status": "accepted",
+      "rank": 3
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "mei",
+      "status": "accepted",
+      "rank": 4
+    }
+  ],
+  "settings": {}
+}

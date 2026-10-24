@@ -1,0 +1,178 @@
+{
+  "_note": "Six made-up SOM classmates for the demo: 2 parents (Priya, Marcus) and 4 villagers. Calendars are .ics files in data/seed/calendars. For a '1pm for 30 min' request from Priya, each villager shows a different case: Sam is busy only on his second calendar, Diego's class ends right at the handoff, Mei has a tentative meeting she'd skip, Hannah is free. Marcus's village includes Priya, a parent helping a parent.",
+  "users": [
+    {
+      "id": "priya",
+      "name": "Priya Raman",
+      "program": "MBA '27",
+      "color": "#c2410c",
+      "is_parent": true,
+      "help_count_week": 0,
+      "help_count_total": 3,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "priya_google.ics"
+        }
+      ]
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus Bell",
+      "program": "MBA '28",
+      "color": "#7c3aed",
+      "is_parent": true,
+      "help_count_week": 0,
+      "help_count_total": 0,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "marcus_google.ics"
+        }
+      ]
+    },
+    {
+      "id": "sam",
+      "name": "Sam Okafor",
+      "program": "MBA '27",
+      "color": "#0369a1",
+      "is_parent": false,
+      "help_count_week": 0,
+      "help_count_total": 1,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Yale Outlook",
+          "file": "sam_yale_outlook.ics"
+        },
+        {
+          "label": "Personal Google",
+          "file": "sam_personal_google.ics"
+        }
+      ]
+    },
+    {
+      "id": "diego",
+      "name": "Diego Martinez",
+      "program": "MBA '28",
+      "color": "#a16207",
+      "is_parent": false,
+      "help_count_week": 0,
+      "help_count_total": 0,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Yale Outlook",
+          "file": "diego_yale_outlook.ics"
+        }
+      ]
+    },
+    {
+      "id": "mei",
+      "name": "Mei Chen",
+      "program": "MBA '27",
+      "color": "#0f766e",
+      "is_parent": false,
+      "help_count_week": 1,
+      "help_count_total": 6,
+      "availability_text": "Happy to help any time I'm not in class or at my RA job. I'll skip a club meeting for this.",
+      "availability_parsed": {
+        "slots": [],
+        "caveats": [
+          "Will skip club meetings to help.",
+          "Not available during class or RA shifts."
+        ],
+        "summary": "Available outside class and RA shifts; will skip club meetings."
+      },
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "mei_google.ics"
+        },
+        {
+          "label": "Research lab",
+          "file": "mei_lab.ics"
+        }
+      ]
+    },
+    {
+      "id": "hannah",
+      "name": "Hannah Weiss",
+      "program": "MBA '27",
+      "color": "#b91c1c",
+      "is_parent": false,
+      "help_count_week": 3,
+      "help_count_total": 9,
+      "availability_text": "",
+      "calendars": [
+        {
+          "label": "Google",
+          "file": "hannah_google.ics"
+        }
+      ]
+    }
+  ],
+  "kids": [
+    {
+      "id": "arjun",
+      "parent_id": "priya",
+      "name": "Arjun",
+      "age": 4,
+      "notes": "Peanut allergy - EpiPen is in the front pocket of his backpack. Loves dinosaurs and Bluey. Crackers and fruit in the bag are fine."
+    },
+    {
+      "id": "lily",
+      "parent_id": "marcus",
+      "name": "Lily",
+      "age": 2,
+      "notes": "Diaper bag has everything. Usually naps in the stroller if you walk around."
+    }
+  ],
+  "village": [
+    {
+      "parent_id": "priya",
+      "villager_id": "sam",
+      "status": "accepted",
+      "rank": 1
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "diego",
+      "status": "accepted",
+      "rank": 2
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "mei",
+      "status": "accepted",
+      "rank": 3
+    },
+    {
+      "parent_id": "priya",
+      "villager_id": "hannah",
+      "status": "accepted",
+      "rank": 4
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "hannah",
+      "status": "accepted",
+      "rank": 1
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "mei",
+      "status": "accepted",
+      "rank": 2
+    },
+    {
+      "parent_id": "marcus",
+      "villager_id": "priya",
+      "status": "accepted",
+      "rank": 3
+    }
+  ],
+  "settings": {}
+}
