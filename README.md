@@ -163,6 +163,7 @@ frontend/         React + TypeScript + Vite (built copy in frontend/dist)
 data/seed/        demo people and calendars
 tests/            pytest suite
 slack/            Slack app manifest
+docs/             report.html and slides.html (self-contained; screenshots and charts embedded)
 scripts/, output/ measure_caching.py and trace_run.py, with results (caching_experiment.md, traced_run.md);
                   every agent run's tokens and cost are logged locally to output/audit_log.jsonl and /api/usage
 ```
