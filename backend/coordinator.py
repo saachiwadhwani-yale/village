@@ -13,7 +13,7 @@ The steps are fixed, so they're code. Each step that needs judgment calls an age
                                               ▼
             first yes wins (one atomic database update) ──► notify parent, helper, everyone else
 
-Agents never send messages, book anyone, or see a child's notes. Only this
+Agents never send messages, book anyone, or see a child's allergies or notes. Only this
 module does, and only to people in the parent's approved village.
 """
 
@@ -592,7 +592,8 @@ async def accept(request_id: int, villager_id: str) -> None:
                   + [Button(label="Cancel booking", action="cancel", request_id=request_id, style="danger")],
                   request_id)
     # The child's notes go only to the person who said yes, only now.
-    notes = f"\n• Notes from {first(parent_id)}: {kid['notes']}" if kid["notes"] else ""
+    notes = (f"\n• Allergies & medical: {kid['allergies']}" if kid["allergies"] else "") + \
+            (f"\n• Notes from {first(parent_id)}: {kid['notes']}" if kid["notes"] else "")
     can_back_out = _can_back_out(req)
     deadline = _dt(req["care_start"]) - timedelta(hours=BACKOUT_MIN_NOTICE_HOURS)
     out_note = (f"If you can't make it after all, please tell me as early as you can, ideally the day before "
@@ -904,16 +905,35 @@ def set_pause(user_id: str, mode: str) -> str | None:
     return until
 
 
-def add_kid(parent_id: str, name: str, age: str, notes: str) -> str:
+def add_kid(parent_id: str, name: str, age: str, notes: str, allergies: str = "") -> str:
     """Adding a child makes someone a parent, with their own village."""
     n = db.one("SELECT COUNT(*) AS n FROM kids WHERE parent_id = ?", parent_id)["n"]
     kid_id = f"{parent_id}_kid{n + 1}"
     while db.one("SELECT 1 FROM kids WHERE id = ?", kid_id):
         n += 1
         kid_id = f"{parent_id}_kid{n + 1}"
-    db.run("INSERT INTO kids VALUES (?,?,?,?,?)", kid_id, parent_id, name.strip(), str(age), notes.strip())
+    db.run("INSERT INTO kids (id, parent_id, name, age, notes, allergies) VALUES (?,?,?,?,?,?)", kid_id, parent_id,
+           name.strip(), str(age), notes.strip(), allergies.strip())
     db.run("UPDATE users SET is_parent = 1 WHERE id = ?", parent_id)
     return kid_id
+
+
+def update_kid(parent_id: str, kid_id: str, name: str, age: str, notes: str, allergies: str | None = None) -> bool:
+    """Edit a child's details. A helper already booked for them gets the new allergies and notes."""
+    old = db.one("SELECT * FROM kids WHERE id = ? AND parent_id = ?", kid_id, parent_id)
+    if not old:
+        return False
+    notes = notes.strip()
+    allergies = old["allergies"] if allergies is None else allergies.strip()
+    db.run("UPDATE kids SET name = ?, age = ?, notes = ?, allergies = ? WHERE id = ?", name.strip(), str(age), notes,
+           allergies, kid_id)
+    if notes != old["notes"] or allergies != old["allergies"]:
+        for r in db.all_("SELECT id, helper_id FROM requests WHERE kid_id = ? AND status = 'booked' AND care_end > ?",
+                         kid_id, _iso(db.now())):
+            channels.send(r["helper_id"], f"{first(parent_id)} updated {name.strip()}'s details:\n"
+                                          f"• Allergies & medical: {allergies or 'not given'}\n"
+                                          f"• Notes: {notes or 'none'}", request_id=r["id"])
+    return True
 
 
 def remove_kid(parent_id: str, kid_id: str) -> str | None:
@@ -921,7 +941,7 @@ def remove_kid(parent_id: str, kid_id: str) -> str | None:
     if db.one("SELECT 1 FROM requests WHERE kid_id = ? AND status IN ('draft','searching','booked')", kid_id):
         return "There's an open request for them. Cancel it first."
     if db.one("SELECT 1 FROM requests WHERE kid_id = ?", kid_id):
-        db.run("UPDATE kids SET notes = '' WHERE id = ? AND parent_id = ?", kid_id, parent_id)
+        db.run("UPDATE kids SET notes = '', allergies = '' WHERE id = ? AND parent_id = ?", kid_id, parent_id)
         return "They're on past requests, so I kept their name but cleared their notes."
     db.run("DELETE FROM kids WHERE id = ? AND parent_id = ?", kid_id, parent_id)
     if not db.one("SELECT 1 FROM kids WHERE parent_id = ?", parent_id):

@@ -282,3 +282,14 @@ async def test_someone_in_two_villages_is_asked_by_both_but_booked_once():
     assert coordinator.leave_village("mei", "priya")
     assert db.one("SELECT status FROM village WHERE parent_id = 'marcus' AND villager_id = 'mei'")["status"] == \
         "accepted"
+
+
+async def test_parent_can_edit_a_kid_and_a_booked_helper_gets_the_new_notes():
+    rid = make_request(verdicts={"hannah": "available"})
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "hannah")
+    kid = request(rid)["kid_id"]
+    assert coordinator.update_kid("priya", kid, "Arjun", "4", "Loves Bluey.", "Peanut and sesame allergy.")
+    assert db.one("SELECT allergies FROM kids WHERE id = ?", kid)["allergies"] == "Peanut and sesame allergy."
+    assert "updated Arjun's details" in last("hannah")["text"] and "sesame" in last("hannah")["text"]
+    assert not coordinator.update_kid("marcus", kid, "X", "1", "")      # only the parent can edit

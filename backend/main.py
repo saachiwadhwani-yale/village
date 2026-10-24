@@ -122,7 +122,7 @@ def _user(row) -> User:
     uid = row["id"]
     return User(
         id=uid, name=row["name"], program=row["program"], color=row["color"], is_parent=bool(row["is_parent"]),
-        kids=[Kid(**dict(k)) for k in db.all_("SELECT id, name, age, notes FROM kids WHERE parent_id = ?", uid)],
+        kids=[Kid(**dict(k)) for k in db.all_("SELECT id, name, age, notes, allergies FROM kids WHERE parent_id = ?", uid)],
         village=[VillageMember(villager_id=v["villager_id"], name=v["name"], status=v["status"], rank=v["rank"])
                  for v in db.all_("SELECT v.*, u.name FROM village v JOIN users u ON u.id = v.villager_id "
                                   "WHERE v.parent_id = ? ORDER BY v.rank", uid)],
@@ -186,7 +186,15 @@ def restart_setup(user_id: str) -> dict:
 @app.post("/api/users/{user_id}/kids")
 def add_kid(user_id: str, body: AddKid) -> User:
     _user_or_404(user_id)
-    coordinator.add_kid(user_id, body.name, body.age, body.notes)
+    coordinator.add_kid(user_id, body.name, body.age, body.notes, body.allergies)
+    return _user(_user_or_404(user_id))
+
+
+@app.put("/api/users/{user_id}/kids/{kid_id}")
+def update_kid(user_id: str, kid_id: str, body: AddKid) -> User:
+    _user_or_404(user_id)
+    if not coordinator.update_kid(user_id, kid_id, body.name, body.age, body.notes, body.allergies):
+        raise HTTPException(404, "No such kid.")
     return _user(_user_or_404(user_id))
 
 

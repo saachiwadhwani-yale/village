@@ -137,14 +137,16 @@
       "parent_id": "priya",
       "name": "Arjun",
       "age": 4,
-      "notes": "Peanut allergy - EpiPen is in the front pocket of his backpack. Loves dinosaurs and Bluey. Crackers and fruit in the bag are fine."
+      "notes": "Loves dinosaurs and Bluey. Crackers and fruit in the bag are fine.",
+      "allergies": "Peanut allergy. EpiPen is in the front pocket of his backpack."
     },
     {
       "id": "lily",
       "parent_id": "marcus",
       "name": "Lily",
       "age": 2,
-      "notes": "Diaper bag has everything. Usually naps in the stroller if you walk around."
+      "notes": "Diaper bag has everything. Usually naps in the stroller if you walk around.",
+      "allergies": "None"
     }
   ],
   "village": [

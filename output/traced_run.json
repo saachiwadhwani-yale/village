@@ -1,0 +1,231 @@
+{
+  "request": "I have a coffee chat at 1 for 30 min and need someone to hang out with my kid",
+  "reply": {
+    "from": "aisha",
+    "text": "yes, happy to! I'll meet you outside Evans Hall"
+  },
+  "draft": {
+    "meeting_start": "2026-10-13T13:00",
+    "meeting_minutes": 30,
+    "care_start": "2026-10-13T12:55",
+    "care_end": "2026-10-13T13:35",
+    "purpose": "coffee chat"
+  },
+  "final": {
+    "status": "booked",
+    "helper_id": "aisha",
+    "care_start": "2026-10-13T12:55",
+    "care_end": "2026-10-13T13:35"
+  },
+  "asks": [
+    {
+      "villager_id": "aisha",
+      "verdict": "maybe",
+      "decided_by": "agent",
+      "verdict_reason": "They’re usually free after 13:00, but the window starts five minutes earlier.",
+      "status": "accepted",
+      "wave": 1
+    },
+    {
+      "villager_id": "diego",
+      "verdict": "maybe",
+      "decided_by": "agent",
+      "verdict_reason": "Busy until 12:50, so the 12:55 handoff would be tight.",
+      "status": "filled",
+      "wave": 1
+    },
+    {
+      "villager_id": "hannah",
+      "verdict": "available",
+      "decided_by": "rules",
+      "verdict_reason": "No conflicts on any connected calendar.",
+      "status": "filled",
+      "wave": 1
+    },
+    {
+      "villager_id": "jordan",
+      "verdict": "unavailable",
+      "decided_by": "rules",
+      "verdict_reason": "Busy 13:30-14:50 on their Google calendar.",
+      "status": "not_asked",
+      "wave": null
+    },
+    {
+      "villager_id": "mei",
+      "verdict": "maybe",
+      "decided_by": "agent",
+      "verdict_reason": "A tentative block overlaps the window; they said they can skip club meetings, but the block's timing can't be identified.",
+      "status": "not_asked",
+      "wave": null
+    },
+    {
+      "villager_id": "sam",
+      "verdict": "unavailable",
+      "decided_by": "rules",
+      "verdict_reason": "Busy 12:30-13:15 on their Personal Google calendar.",
+      "status": "not_asked",
+      "wave": null
+    }
+  ],
+  "events": [
+    {
+      "kind": "agent",
+      "agent": "intake",
+      "text": "Intake read the request: coffee chat today 1:00pm for 30 min."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Checking 6 villagers for 12:55pm–1:35pm (rules first, agents for unclear cases)."
+    },
+    {
+      "kind": "agent",
+      "agent": "availability",
+      "text": "Aisha: maybe — They’re usually free after 13:00, but the window starts five minutes earlier."
+    },
+    {
+      "kind": "agent",
+      "agent": "availability",
+      "text": "Diego: maybe — Busy until 12:50, so the 12:55 handoff would be tight."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Hannah: available — No conflicts on any connected calendar."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Jordan: unavailable — Busy 13:30-14:50 on their Google calendar."
+    },
+    {
+      "kind": "agent",
+      "agent": "availability",
+      "text": "Mei: maybe — A tentative block overlaps the window; they said they can skip club meetings, but the block's timing can't be identified."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Sam: unavailable — Busy 12:30-13:15 on their Personal Google calendar."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Wave 1: asked Hannah, Diego and Aisha."
+    },
+    {
+      "kind": "agent",
+      "agent": "reply",
+      "text": "Reply from Aisha read as: accept."
+    },
+    {
+      "kind": "step",
+      "agent": null,
+      "text": "Booked: Aisha said yes first."
+    }
+  ],
+  "usage": [
+    {
+      "agent": "intake",
+      "subject": "priya",
+      "requests": 1,
+      "input_tokens": 1632,
+      "cached_tokens": 1443,
+      "output_tokens": 51,
+      "cost_usd": 5.883e-05,
+      "duration_ms": 4206
+    },
+    {
+      "agent": "availability",
+      "subject": "diego",
+      "requests": 2,
+      "input_tokens": 2888,
+      "cached_tokens": 2636,
+      "output_tokens": 105,
+      "cost_usd": 0.00010406,
+      "duration_ms": 3145
+    },
+    {
+      "agent": "availability",
+      "subject": "aisha",
+      "requests": 2,
+      "input_tokens": 2952,
+      "cached_tokens": 2700,
+      "output_tokens": 151,
+      "cost_usd": 0.00012770000000000001,
+      "duration_ms": 3429
+    },
+    {
+      "agent": "availability",
+      "subject": "mei",
+      "requests": 2,
+      "input_tokens": 2927,
+      "cached_tokens": 2675,
+      "output_tokens": 188,
+      "cost_usd": 0.00014595,
+      "duration_ms": 3868
+    },
+    {
+      "agent": "reply",
+      "subject": "aisha",
+      "requests": 1,
+      "input_tokens": 1312,
+      "cached_tokens": 0,
+      "output_tokens": 32,
+      "cost_usd": 0.00014720000000000003,
+      "duration_ms": 1806
+    }
+  ],
+  "messages": [
+    {
+      "user_id": "priya",
+      "direction": "out",
+      "text": "Got it: someone to hang out with Arjun (4) today, 12:55pm–1:35pm. That covers your coffee chat (1:00pm–1:30pm) plus 5 min on each side for the handoff.\n\nWant me to check your village?"
+    },
+    {
+      "user_id": "priya",
+      "direction": "out",
+      "text": "On it! Checking who in your village is free…"
+    },
+    {
+      "user_id": "hannah",
+      "direction": "out",
+      "text": "Hi Hannah! Priya could use a hand: can you hang out with Arjun (4) today, 12:55pm–1:35pm? Priya has a coffee chat."
+    },
+    {
+      "user_id": "diego",
+      "direction": "out",
+      "text": "Hi Diego! Priya could use a hand: can you hang out with Arjun (4) today, 12:55pm–1:35pm? Priya has a coffee chat."
+    },
+    {
+      "user_id": "aisha",
+      "direction": "out",
+      "text": "Hi Aisha! Priya could use a hand: can you hang out with Arjun (4) today, 12:55pm–1:35pm? Priya has a coffee chat."
+    },
+    {
+      "user_id": "priya",
+      "direction": "out",
+      "text": "Asking Hannah, Diego and Aisha now. I'll let you know as soon as someone says yes."
+    },
+    {
+      "user_id": "diego",
+      "direction": "out",
+      "text": "Update: Priya found someone for today, 12:55pm–1:35pm, so no need. Thanks for being in the village!"
+    },
+    {
+      "user_id": "hannah",
+      "direction": "out",
+      "text": "Update: Priya found someone for today, 12:55pm–1:35pm, so no need. Thanks for being in the village!"
+    },
+    {
+      "user_id": "priya",
+      "direction": "out",
+      "text": "Aisha said yes! They'll meet you at 12:55pm and hang out with Arjun until 1:35pm."
+    },
+    {
+      "user_id": "aisha",
+      "direction": "out",
+      "text": "Thank you! You're on for today, 12:55pm–1:35pm.\n• Meet Priya at 12:55pm\n• Arjun is 4\n• Notes from Priya: Peanut allergy - EpiPen is in the front pocket of his backpack. Loves dinosaurs and Bluey. Crackers and fruit in the bag are fine.\nIf anything comes up, message Priya right away."
+    }
+  ]
+}

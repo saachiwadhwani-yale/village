@@ -54,6 +54,9 @@ async def test_parent_setup_conversation():
     assert tuple(db.one("SELECT name, age FROM kids WHERE parent_id = ?", me)) == ("Maya", "3")
     await coordinator.handle_message(me, "Loves trains. Snack in the blue bag.")
     assert "Loves trains" in db.one("SELECT notes FROM kids WHERE parent_id = ?", me)["notes"]
+    summary = messages(me)[-2]["text"]                               # one question only, then the summary
+    assert "*Name:* Maya\n*Age:* 3\n*Allergies:* None mentioned\n*General notes:* Loves trains. Snack in the blue bag." \
+        in summary
 
     picker = await tap(me, "Pick classmates…", values=["hannah", "sam", me])   # picking yourself is ignored
     assert {r["villager_id"] for r in db.all_("SELECT villager_id FROM village WHERE parent_id = ?", me)} == \
@@ -68,19 +71,31 @@ async def test_parent_setup_conversation():
     assert all(m["used"] for m in messages(me) if m["buttons"])      # no setup buttons left open
 
 
-async def test_several_kids_in_one_message_each_get_notes():
+async def test_several_kids_in_one_message_get_one_notes_question():
     me = new_classmate("w_dana", "Dana Ruiz")
     onboarding.start(me)
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Maya 3 and leo, 5")
     assert [tuple(k) for k in db.all_("SELECT name, age FROM kids WHERE parent_id = ? ORDER BY rowid", me)] == \
         [("Maya", "3"), ("Leo", "5")]
-    assert "about Maya" in last(me)["text"]
-    await coordinator.handle_message(me, "Loves trains")
-    assert "about Leo" in last(me)["text"]
-    await tap(me, "Skip")
+    assert "about Maya and Leo" in last(me)["text"]                    # one question for both
+    await coordinator.handle_message(me, "Maya loves trains, Leo is allergic to nuts. Snacks are in the blue bag.")
+    kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
+    assert kids == {"Maya": ("", "Maya loves trains. Snacks are in the blue bag."),
+                    "Leo": ("Leo is allergic to nuts.", "Snacks are in the blue bag.")}
     assert "Who do you want in your village?" in last(me)["text"] and "Maya or Leo" in last(me)["text"]
-    assert db.one("SELECT notes FROM kids WHERE parent_id = ? AND name = 'Maya'", me)["notes"] == "Loves trains"
+
+
+async def test_notes_given_with_the_names_are_kept_and_not_asked_again():
+    me = new_classmate("w_ola", "Ola Berg")
+    onboarding.start(me)
+    await tap(me, "Yes, I'm a parent")
+    await coordinator.handle_message(me, "Maya 3 - no allergies, loves trains, naps at 1; Leo 5 - nut allergy")
+    kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
+    assert kids == {"Maya": ("No allergies.", "Loves trains. Naps at 1."), "Leo": ("Nut allergy.", "")}
+    assert "Who do you want in your village?" in last(me)["text"]      # everything given at once: nothing to ask
+    assert not any("?" in m["text"] and "allerg" in m["text"].lower() for m in messages(me))
+    assert "*Name:* Leo\n*Age:* 5\n*Allergies:* Nut allergy.\n*General notes:* None" in messages(me)[-2]["text"]
 
 
 def test_parse_kids():
@@ -97,7 +112,7 @@ async def test_parent_is_asked_for_free_times_on_joining_a_village():
     onboarding.start(me)
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Ana, 2")
-    await tap(me, "Skip")
+    await coordinator.handle_message(me, "none")
     await tap(me, "Skip for now")
     assert onboarding.step(me) == "done" and not onboarding.has_free_times(me)
     home = _home_blocks(me, None)
@@ -203,7 +218,7 @@ async def test_slack_draws_setup_with_a_people_picker_and_form_buttons(slack):
     assert db.one("SELECT name FROM users WHERE id = ?", me)["name"] == "Saachi Wadhwani"   # handle cleaned up
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Maya, 3")
-    await tap(me, "Skip")
+    await coordinator.handle_message(me, "no")
     await drain(slack)
     village_q = slack.client.posts[-1]["blocks"]
     row = next(b for b in village_q if b["type"] == "actions")["elements"]
@@ -277,3 +292,14 @@ async def test_reset_with_the_real_demo_data_starts_people_as_described(monkeypa
     for new in ("marcus", "diego", "jordan"):
         assert "Are you a parent?" in last(new)["text"]
         assert not db.one("SELECT 1 FROM calendars WHERE user_id = ?", new)
+
+
+async def test_notes_without_allergies_get_one_allergy_question():
+    me = new_classmate("w_kai", "Kai Wu")
+    onboarding.start(me)
+    await tap(me, "Yes, I'm a parent")
+    await coordinator.handle_message(me, "Lily 2 - loves the stroller, naps around 1")
+    assert "Last thing: does Lily have any allergies or medical needs" in last(me)["text"]
+    await coordinator.handle_message(me, "no")
+    assert "*Allergies:* None\n*General notes:* Loves the stroller, naps around 1." in messages(me)[-2]["text"]
+    assert "Who do you want in your village?" in last(me)["text"]

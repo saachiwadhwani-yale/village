@@ -164,6 +164,7 @@ class Kid(BaseModel):
     name: str
     age: str = Field(description='Years, like "4", or months for babies, like "6 months".')
     notes: str = ""
+    allergies: str = Field(default="", description='Allergies and medical needs, or "None".')
 
     @field_validator("age", mode="before")
     @classmethod
@@ -229,6 +230,7 @@ class AddKid(BaseModel):
             raise ValueError('Enter an age in years, like 4, or in months, like "6 months".')
         return label
     notes: str = Field(default="", max_length=500)
+    allergies: str = Field(default="", max_length=300)
 
 
 class NewUser(BaseModel):

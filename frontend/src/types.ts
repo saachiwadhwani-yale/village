@@ -30,6 +30,7 @@ export interface Kid {
   name: string
   age: string   // years ("4") or months for babies ("6 months")
   notes: string
+  allergies: string
 }
 
 export interface Calendar {

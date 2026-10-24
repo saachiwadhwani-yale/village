@@ -1,0 +1,8 @@
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=session
+collecting ... collected 10 items / 7 deselected / 3 selected
+
+tests/test_agents_live.py::test_injected_reply_cannot_book_or_leak PASSED [ 33%]
+tests/test_agents_live.py::test_injected_availability_text_is_only_read_as_times PASSED [ 66%]
+tests/test_agents_live.py::test_injected_parent_message_books_nothing PASSED [100%]
+
+======================= 3 passed, 7 deselected in 10.99s =======================

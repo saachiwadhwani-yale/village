@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../api'
-import type { FormName, User } from '../types'
+import type { FormName, Kid, User } from '../types'
 
 interface FormProps {
   user: User
@@ -69,20 +69,29 @@ function useSubmit(onDone: (u?: User) => void) {
   return { busy, error, run }
 }
 
-export function KidForm({ user, onDone, onClose }: FormProps) {
-  const [name, setName] = useState('')
-  const [age, setAge] = useState('')
-  const [notes, setNotes] = useState('')
+/** Add a kid, or edit one when `kid` is given. */
+export function KidForm({ user, onDone, onClose, kid }: FormProps & { kid?: Kid }) {
+  const [name, setName] = useState(kid?.name ?? '')
+  const [age, setAge] = useState(kid?.age ?? '')
+  const [notes, setNotes] = useState(kid?.notes ?? '')
+  const [allergies, setAllergies] = useState(kid?.allergies ?? '')
   const { busy, error, run } = useSubmit(onDone)
   return (
-    <Modal title="Add a kid" submit="Save" busy={busy} error={error} onClose={onClose}
-      onSubmit={() => run(() => api.addKid(user.id, name.trim(), age.trim(), notes))}>
+    <Modal title={kid ? `Edit ${kid.name}` : 'Add a kid'} submit="Save" busy={busy} error={error} onClose={onClose}
+      onSubmit={() => run(() => kid ? api.updateKid(user.id, kid.id, name.trim(), age.trim(), notes, allergies)
+                                    : api.addKid(user.id, name.trim(), age.trim(), notes, allergies))}>
       <label>First name<input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required /></label>
       <label>Age<input value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 4 or 6 months" required /></label>
       <label>
-        Notes for whoever helps <span className="optional">(optional)</span>
+        Allergies or medical needs
+        <input value={allergies} onChange={(e) => setAllergies(e.target.value)} maxLength={300} required
+          placeholder="e.g. Peanut allergy, EpiPen in backpack. Or: none" />
+        <small>Only shared with the classmate who says yes, after they say yes.</small>
+      </label>
+      <label>
+        General notes <span className="optional">(optional)</span>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={500} />
-        <small>Allergies, favorite things, what's in the bag. Only shared with the classmate who says yes, after they say yes.</small>
+        <small>Favorite things, naps, what's in the bag.</small>
       </label>
     </Modal>
   )

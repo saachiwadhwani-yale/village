@@ -42,17 +42,17 @@ parent message ──► intake agent ──► parent confirms the time
 
 The reply and profile agents have no tools on purpose. They read text written by classmates, so they can only return a label, and an instruction hidden in that text has nothing to act on. Everything they need is already in their prompt.
 
-All agents use **gpt-6-luna** through Portkey. Messaging, booking, and sharing the child's notes are done by code (`backend/coordinator.py`), never by an agent.
+All agents use **gpt-6-luna** through Portkey. Messaging, booking, and sharing the child's allergies and notes are done by code (`backend/coordinator.py`), never by an agent.
 
 ## Using Village
 
 Village works the same way in Slack and in the web demo: you message it in a direct message, tap buttons, and edit your profile on its **Home** tab.
 
-- **Setting up:** the first time, Village asks a few questions in the chat. Parents give their kids' names, ages (in years, or months for babies), and notes (several kids can go in one message) and pick who's in their village. Classmates who aren't parents connect a calendar or describe when they're free; parents are asked for this only once they join someone else's village.
+- **Setting up:** the first time, Village asks a few questions in the chat. Parents give their kids' names and ages (in years, or months for babies), and can include allergies and notes in the same message, for several kids at once. Village asks at most one follow-up: about allergies if they weren't mentioned, or for anything important if nothing was shared. It then shows a summary (name, age, allergies, general notes) and asks who's in their village. Classmates who aren't parents connect a calendar or describe when they're free; parents are asked for this only once they join someone else's village.
 - **Asking for help (parents):** describe what you need in plain words, like *"Accounting tomorrow at 10:10, can someone take Arjun?"*. Village confirms the time with you, then asks classmates who look free. While it searches you can ask more people at once or cancel. If someone offers a different time, you accept or decline it.
-- **Helping (classmates):** tap **Yes, I can** or **Can't this time**, or reply in your own words (*"I can do 1:10 onward"*, or a question for the parent). If you say yes first, you get the kid's notes and add-to-calendar buttons. To back out, tap **I can't make it anymore**.
+- **Helping (classmates):** tap **Yes, I can** or **Can't this time**, or reply in your own words (*"I can do 1:10 onward"*, or a question for the parent). If you say yes first, you get the kid's allergies and notes, and add-to-calendar buttons. To back out, tap **I can't make it anymore**.
 - **Several villages:** a classmate can be in more than one parent's village. Once they say yes to one parent, their other open asks for that day are withdrawn, so they're never booked twice.
-- **Home tab:** add or remove kids, village members, and calendars; edit your written availability; pause for a while; or leave a village.
+- **Home tab:** add, edit, or remove kids (a helper already booked gets any change to allergies or notes), village members, and calendars; edit your written availability; pause for a while; or leave a village.
 
 ## Version 1: web demo
 
@@ -89,7 +89,7 @@ Two windows each show one person in a fake Slack workspace (Village is under **A
 | New to Village | **Marcus**, **Diego**, **Jordan** | Not set up yet. |
 
 1. **Ask as Priya.** Send *"I have a coffee chat at 1 for 30 min and need someone to hang out with my kid"* and tap **Find someone**. The **Behind the scenes** tab shows each classmate screened by rules (⚙) or by their own agent (✦).
-2. **Answer as a classmate.** Window 2 switches to someone who was asked. Tap **Yes, I can**, or type a reply like *"I can only do 1:10 onward"*. Both sides get the booking and add-to-calendar buttons; the helper gets Arjun's notes.
+2. **Answer as a classmate.** Window 2 switches to someone who was asked. Tap **Yes, I can**, or type a reply like *"I can only do 1:10 onward"*. Both sides get the booking and add-to-calendar buttons; the helper gets Arjun's allergies and notes.
 3. **Grow the village.** As Hannah, tap **Join**. Set up Diego (**No, I'm here to help** → **Use my demo calendar (demo only)**), then add him from Priya's **Home** tab (**Add people**) and tap **Join** as Diego. Set up Marcus as a parent, or Jordan by describing availability in words.
 4. **Back out.** Book something for tomorrow, then tap **I can't make it anymore** as the helper (if it's less than a day away, confirm with **Yes, I have to cancel**). Village finds a replacement on its own.
 
@@ -151,13 +151,13 @@ frontend/         React + TypeScript + Vite (built copy in frontend/dist)
 data/seed/        demo people and calendars
 tests/            pytest suite
 slack/            Slack app manifest
-scripts/, output/ caching measurement and results (caching_experiment.md); every agent run's
-                  tokens and cost are logged locally to output/audit_log.jsonl and served at /api/usage
+scripts/, output/ measure_caching.py and trace_run.py, with results (caching_experiment.md, traced_run.md);
+                  every agent run's tokens and cost are logged locally to output/audit_log.jsonl and /api/usage
 ```
 
 ## Safety
 
-- **Privacy:** a real calendar is stored only as its private link. Village downloads it when checking availability, keeps only busy times in memory, and never saves event details, so agents never see event names. A child's notes go only to the helper, after they say yes. Add-to-calendar links are signed and leave the notes out.
+- **Privacy:** a real calendar is stored only as its private link. Village downloads it when checking availability, keeps only busy times in memory, and never saves event details, so agents never see event names. A child's allergies and notes go only to the helper, after they say yes. Add-to-calendar links are signed and leave them out.
 - **Prompt injection:** classmates' text is marked as untrusted data in every prompt. The reply and profile agents have no tools, the availability agent's tools only read that one classmate's data, and booking is done by code.
 - **Double booking:** the first yes wins in one conditional database update.
 - **Cost:** per-agent limits and a token budget per request.

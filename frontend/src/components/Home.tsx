@@ -4,8 +4,8 @@
 import { useState } from 'react'
 import { api } from '../api'
 import { clock, day } from '../format'
-import type { FormName, PauseMode, User } from '../types'
-import { AddPeopleForm, FormFor } from './Forms'
+import type { FormName, Kid, PauseMode, User } from '../types'
+import { AddPeopleForm, FormFor, KidForm } from './Forms'
 
 interface Props {
   user: User
@@ -15,6 +15,7 @@ interface Props {
 
 export function Home({ user, users, onChanged }: Props) {
   const [form, setForm] = useState<FormName | 'people' | null>(null)
+  const [editKid, setEditKid] = useState<Kid | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const firstName = (id: string) => (users.find((u) => u.id === id)?.name ?? id).split(' ')[0]
   const hasFreeTimes = user.calendars.length > 0 || !!user.availability_text
@@ -59,8 +60,8 @@ export function Home({ user, users, onChanged }: Props) {
         <>
           <Section title="Kids" action={<button className="sbtn small" onClick={() => setForm('kid')}>Add a kid</button>}>
             {user.kids.map((k) => (
-              <Line key={k.id} text={<>{k.name}, {k.age}{k.notes && <span className="muted">  ·  🔒 notes saved</span>}</>}
-                menu={[[`Remove ${k.name}`, () => confirm(`Remove ${k.name}? Their notes will be deleted.`) && run(() => api.removeKid(user.id, k.id))]]} />
+              <Line key={k.id} text={<>{k.name}, {k.age}{(k.notes || k.allergies) && <span className="muted">  ·  🔒 allergies and notes saved</span>}</>}
+                menu={[[`Edit ${k.name}`, () => setEditKid(k)], [`Remove ${k.name}`, () => confirm(`Remove ${k.name}? Their notes will be deleted.`) && run(() => api.removeKid(user.id, k.id))]]} />
             ))}
           </Section>
 
@@ -123,6 +124,9 @@ export function Home({ user, users, onChanged }: Props) {
         </div>
       )}
 
+      {editKid && (
+        <KidForm user={user} kid={editKid} onClose={() => setEditKid(null)} onDone={() => { setEditKid(null); onChanged() }} />
+      )}
       {form === 'people' && (
         <AddPeopleForm user={user} users={users} onClose={() => setForm(null)} onDone={() => { setForm(null); onChanged() }} />
       )}

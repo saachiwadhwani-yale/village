@@ -25,7 +25,7 @@ CREATE TABLE users (
     help_count_total INTEGER NOT NULL DEFAULT 0,
     paused_until TEXT,                -- local ISO time; not asked for care that starts before this
     slack_id TEXT UNIQUE,             -- set for people who use Village through Slack
-    onboarding TEXT,                  -- setup step (see onboarding.py): NULL, role, kid, kid_notes:<ids>, village, calendar_helper, calendar_joined, done
+    onboarding TEXT,                  -- setup step (see onboarding.py): NULL, role, kid, kid_notes:<ids>, kid_medical:<ids>, village, calendar_helper, calendar_joined, done
     availability_text TEXT NOT NULL DEFAULT '',
     availability_parsed TEXT          -- JSON ParsedAvailability, or NULL
 );
@@ -34,7 +34,8 @@ CREATE TABLE kids (
     parent_id TEXT NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
     age TEXT NOT NULL,                -- years ("4") or months for babies ("6 months")
-    notes TEXT NOT NULL DEFAULT ''    -- sensitive: only shown to the villager who accepts
+    notes TEXT NOT NULL DEFAULT '',   -- sensitive: only shown to the villager who accepts
+    allergies TEXT NOT NULL DEFAULT '' -- allergies and medical needs (or "None"); same privacy as notes
 );
 CREATE TABLE village (
     parent_id TEXT NOT NULL REFERENCES users(id),
@@ -189,8 +190,8 @@ def reset(fresh_setup: bool = False) -> None:
                     (u["id"], c["label"], c["file"]),
                 )
         for k in data["kids"]:
-            conn.execute("INSERT INTO kids VALUES (?,?,?,?,?)",
-                         (k["id"], k["parent_id"], k["name"], k["age"], k["notes"]))
+            conn.execute("INSERT INTO kids (id, parent_id, name, age, notes, allergies) VALUES (?,?,?,?,?,?)",
+                         (k["id"], k["parent_id"], k["name"], k["age"], k["notes"], k.get("allergies", "")))
         for v in data["village"]:
             conn.execute("INSERT INTO village VALUES (?,?,?,?)",
                          (v["parent_id"], v["villager_id"], v["status"], v["rank"]))
@@ -244,6 +245,7 @@ def ensure() -> None:
 _ADDED_COLUMNS = {
     "users": {"help_count_total": "INTEGER NOT NULL DEFAULT 0", "paused_until": "TEXT", "slack_id": "TEXT",
               "onboarding": "TEXT"},
+    "kids": {"allergies": "TEXT NOT NULL DEFAULT ''"},
     "messages": {"button_choice": "TEXT", "slack_channel": "TEXT", "slack_ts": "TEXT"},
 }
 

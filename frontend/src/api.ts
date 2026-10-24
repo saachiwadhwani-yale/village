@@ -32,8 +32,10 @@ export const api = {
   newUser: (name: string, program: string) => call<User>('/users', json('POST', { name, program })),
   open: (userId: string) => call(`/users/${userId}/open`, { method: 'POST' }),
   restartSetup: (userId: string) => call(`/users/${userId}/setup/restart`, { method: 'POST' }),
-  addKid: (userId: string, name: string, age: string, notes: string) =>
-    call<User>(`/users/${userId}/kids`, json('POST', { name, age, notes })),
+  addKid: (userId: string, name: string, age: string, notes: string, allergies: string) =>
+    call<User>(`/users/${userId}/kids`, json('POST', { name, age, notes, allergies })),
+  updateKid: (userId: string, kidId: string, name: string, age: string, notes: string, allergies: string) =>
+    call<User>(`/users/${userId}/kids/${kidId}`, json('PUT', { name, age, notes, allergies })),
   removeKid: (userId: string, kidId: string) => call<User>(`/users/${userId}/kids/${kidId}`, { method: 'DELETE' }),
   setVillage: (userId: string, villagerIds: string[]) =>
     call<User>(`/users/${userId}/village`, json('PUT', { villager_ids: villagerIds })),

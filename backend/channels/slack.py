@@ -325,7 +325,14 @@ class SlackChannel:
                 return
             await ack()
             user_id, _ = await self.user_for(body["user"]["id"])
-            _coordinator().add_kid(user_id, name, age, (values["notes"]["v"].get("value") or ""))
+            notes = values["notes"]["v"].get("value") or ""
+            allergies = (values["allergies"]["v"].get("value") or "").strip()
+            if allergies.lower() in ("none", "no", "n/a", "nothing"):
+                allergies = "None"
+            if view.get("private_metadata"):          # editing an existing kid
+                _coordinator().update_kid(user_id, view["private_metadata"], name, age, notes, allergies)
+            else:
+                _coordinator().add_kid(user_id, name, age, notes, allergies)
             await self.publish_home(body["user"]["id"])
 
         @app.view("add_villagers")
@@ -416,6 +423,11 @@ class SlackChannel:
         elif verb in ("add_kid", "add_calendar", "edit_availability"):
             await self._open_form(body["trigger_id"], {"add_kid": "kid", "add_calendar": "calendar",
                                                        "edit_availability": "availability"}[verb], user_id)
+            return
+        elif verb == "edit_kid":
+            kid = db.one("SELECT * FROM kids WHERE id = ? AND parent_id = ?", arg, user_id)
+            if kid:
+                await self.client.views_open(trigger_id=body["trigger_id"], view=_kid_modal(dict(kid)))
             return
         elif verb == "remove_kid":
             note = coordinator.remove_kid(user_id, arg)
@@ -508,9 +520,10 @@ def _home_blocks(user_id: str, note: str | None) -> list[dict]:
     if kids:
         blocks.append(_section("*Kids*", _button("Add a kid", "home_add_kid", "add_kid")))
         for k in kids:
-            notes = "  ·  🔒 notes saved" if k["notes"] else ""
+            notes = "  ·  🔒 allergies and notes saved" if k["notes"] or k["allergies"] else ""
             blocks.append(_section(f"{_esc(k['name'])}, {k['age']}{notes}",
-                                   _menu(f"home_kid_{k['id']}", [(f"Remove {k['name']}", f"remove_kid:{k['id']}")])))
+                                   _menu(f"home_kid_{k['id']}", [(f"Edit {k['name']}", f"edit_kid:{k['id']}"),
+                                                                  (f"Remove {k['name']}", f"remove_kid:{k['id']}")])))
 
         blocks += [{"type": "divider"},
                    _section("*Your village*", _button("Add people", "home_add_people", "add_villagers")),
@@ -608,15 +621,23 @@ def _modal(callback_id: str, title: str, blocks: list[dict], submit: str = "Save
             "blocks": blocks, "private_metadata": metadata}
 
 
-def _kid_modal() -> dict:
-    return _modal("add_kid", "Add a kid", [
-        _input("name", "First name", {"type": "plain_text_input", "max_length": 40}),
-        _input("age", "Age", {"type": "plain_text_input", "max_length": 12,
-                             "placeholder": {"type": "plain_text", "text": "e.g. 4 or 6 months"}}),
-        _input("notes", "Notes for whoever helps", {"type": "plain_text_input", "multiline": True, "max_length": 500},
-               optional=True, hint="Allergies, favorite things, what's in the bag. Only shared with the classmate "
-                                   "who says yes, after they say yes."),
-    ])
+def _kid_modal(kid: dict | None = None) -> dict:
+    """Add a kid, or edit one (kid given: fields filled in, its id kept in the modal's metadata)."""
+    def filled(element: dict, key: str) -> dict:
+        return {**element, "initial_value": str(kid[key])} if kid and kid[key] not in (None, "") else element
+    return _modal("add_kid", f"Edit {kid['name']}"[:24] if kid else "Add a kid", [
+        _input("name", "First name", filled({"type": "plain_text_input", "max_length": 40}, "name")),
+        _input("age", "Age", filled({"type": "plain_text_input", "max_length": 12,
+                                     "placeholder": {"type": "plain_text", "text": "e.g. 4 or 6 months"}}, "age")),
+        _input("allergies", "Allergies or medical needs",
+               filled({"type": "plain_text_input", "max_length": 300,
+                       "placeholder": {"type": "plain_text", "text": "e.g. Peanut allergy, EpiPen in backpack. Or: none"}},
+                      "allergies"),
+               hint="Only shared with the classmate who says yes, after they say yes."),
+        _input("notes", "General notes", filled({"type": "plain_text_input", "multiline": True, "max_length": 500},
+                                                "notes"),
+               optional=True, hint="Favorite things, naps, what's in the bag."),
+    ], metadata=kid["id"] if kid else "")
 
 
 def _add_people_modal(metadata: str = "") -> dict:

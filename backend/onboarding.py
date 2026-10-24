@@ -4,7 +4,8 @@ Channel-agnostic: it only sends messages through `channels.send`, with buttons,
 a people picker, and form buttons that each channel draws its own way (Slack
 Block Kit, or the web demo client). Someone's step is kept in users.onboarding:
 
-    NULL -> role -> kid -> kid_notes:<ids> -> village -> done
+    NULL -> role -> kid -> [kid_notes:<ids> | kid_medical:<ids>] -> village -> done
+    (at most one of kid_notes / kid_medical, depending on what the first message already covered)
                 \\-> calendar_helper (not a parent) -> done
 
 Parents aren't asked when they're free until they join someone else's village
@@ -151,35 +152,147 @@ def _ask_kid(user_id: str) -> None:
         channels.send(user_id, "What are your kids' first names and ages? Just type them, like *Maya, 3*.")
 
 
-def parse_kids(text: str) -> list[tuple[str, int]]:
-    """Every "name, age" pair in a message: "Maya, 3", "Maya 3 and Leo 5", "Ana, 6 months"."""
-    kids = []
-    pairs = re.findall(r"([A-Za-zÀ-ÿ'.-]+(?:\s[A-Za-zÀ-ÿ'.-]+)?)\s*[,:(-]?\s*(?:age\s*)?"
-                       r"(\d{1,2}\s*(?:months?|mos?|mths?|years?|yrs?|y/?o)?)\b", text, flags=re.I)
-    for name, age in pairs:
-        name = re.sub(r"^(?:and|&|my|kids?|is|are)\s+", "", name.strip(), flags=re.I).strip()
-        label = age_label(age)
-        if not name or name.lower() in NOT_A_NAME or name.lower() in ("and", "age") or label is None:
+KID_RE = re.compile(r"([A-Za-zÀ-ÿ'.-]+(?:\s[A-Za-zÀ-ÿ'.-]+)?)\s*[,:(-]?\s*(?:age\s*)?"
+                    r"(\d{1,2}\s*(?:months?|mos?|mths?|years?|yrs?|y/?o)?)\b\)?", re.I)
+# Words that show a number is a time or amount in a note ("naps at 1", "eats by 5"), not a kid's age.
+NOT_NAME_WORDS = {"at", "in", "on", "by", "until", "till", "around", "about", "after", "before", "from", "to", "for",
+                  "naps", "nap", "sleeps", "wakes", "eats", "is", "was", "she", "he", "they", "her", "his", "loves",
+                  "likes", "needs", "has", "gets", "bed", "bedtime", "lunch", "dinner", "snack", "pm", "am", "every",
+                  "each", "than", "under", "over", "like", "with", "of", "only", "takes", "drinks", "the", "a"}
+# Words that often surround names and ages but aren't notes ("my kids are Maya 3 and Leo 5").
+FILLER = {"my", "kids", "kid", "are", "is", "and", "their", "names", "name", "ages", "age", "i", "have", "two",
+          "three", "children", "child", "son", "daughter", "old", "years", "they're", "theyre", "&", "the"}
+
+
+def _is_note(text: str) -> bool:
+    return len([w for w in re.findall(r"[\w']+", text.lower()) if w not in FILLER]) >= 2
+
+
+def parse_kids_with_notes(text: str) -> tuple[list[tuple[str, str]], dict[str, str]]:
+    """Every "name, age" pair in a message ("Maya, 3", "Maya 3 and Leo 5", "Ana, 6 months"), plus any notes
+    given in the same breath: "Maya 3 - loves trains; Leo 5 - nut allergy" gives each kid the words after them."""
+    found = []
+    for m in KID_RE.finditer(text):
+        name = re.sub(r"^(?:and|&|my|kids?|is|are)\s+", "", m.group(1).strip(), flags=re.I).strip()
+        label = age_label(m.group(2))
+        if (not name or name.lower() in NOT_A_NAME or name.lower() in ("and", "age") or label is None
+                or any(w in NOT_NAME_WORDS for w in name.lower().split())):
             continue
-        kids.append((" ".join(w[:1].upper() + w[1:] for w in name.split()), label))
-    return kids
+        found.append((" ".join(w[:1].upper() + w[1:] for w in name.split()), label, m.start(), m.end()))
+    kids = [(n, a) for n, a, _, _ in found]
+    notes: dict[str, list[str]] = {n: [] for n, _ in kids}
+    for i, (name, _, _, end) in enumerate(found):
+        after = text[end:found[i + 1][2] if i + 1 < len(found) else len(text)].strip(" ,;:-–—.\n")
+        after = re.sub(r"\s*(?:,|;)?\s*(?:and|&)$", "", after, flags=re.I).strip(" ,;:-–—.")
+        if _is_note(after):
+            notes[name].append(after)
+    before = text[:found[0][2]].strip(" ,;:-–—.\n") if found else ""
+    if _is_note(before):                       # said before any name: about all of them
+        for n in notes:
+            notes[n].insert(0, before)
+    return kids, {n: ". ".join(ps) for n, ps in notes.items() if ps}
 
 
-def _ask_notes(user_id: str, kid_ids: list[str]) -> None:
-    """Ask for notes about the first kid in the list; the rest wait in the step."""
-    if not kid_ids:
+def parse_kids(text: str) -> list[tuple[str, str]]:
+    return parse_kids_with_notes(text)[0]
+
+
+def split_notes(text: str, names: list[str]) -> dict[str, str]:
+    """Share one message of notes out between kids: a part that names a kid goes to that kid, a part that
+    names none goes to all of them. "Maya loves trains, Leo is allergic to nuts" -> one note each."""
+    if len(names) == 1:
+        return {names[0]: text.strip()}
+    alt = "|".join(re.escape(n.split()[0]) for n in names)
+    parts = []
+    for sentence in re.split(r"(?<=[.;!?])\s+|\n+", text):
+        parts += re.split(rf"(?:,|;|\s+and)\s+(?=(?:{alt})\b)", sentence, flags=re.I)
+    notes: dict[str, list[str]] = {n: [] for n in names}
+    for part in (p.strip(" ,;") for p in parts):
+        if not part:
+            continue
+        named = [n for n in names if re.search(rf"\b{re.escape(n.split()[0])}\b", part, re.I)]
+        for n in named or names:
+            notes[n].append(part)
+    return {n: " ".join(p if p.endswith((".", "!", "?")) else p + "." for p in ps) for n, ps in notes.items() if ps}
+
+
+# Notes that mention any of these say something about allergies or health ("no allergies" counts too).
+MEDICAL_RE = re.compile(r"allerg|epi ?-?pen|anaphyla|asthma|inhaler|medic|diabet|insulin|seizure|epilep|eczema|"
+                        r"celiac|gluten|lactose|dairy|peanut|\bnuts?\b|shellfish|sesame|health|condition|"
+                        r"special needs|no known", re.I)
+NO_RE = re.compile(r"^\s*(?:no(?:pe)?|none|nothing|n/?a|not really|nah)\b", re.I)
+NONE = "None"
+
+
+def split_medical(text: str) -> tuple[str, str]:
+    """(allergies and medical needs, general notes) from one kid's notes, by sentence or clause:
+    "Peanut allergy - EpiPen in the backpack. Loves trains" -> ("Peanut allergy. EpiPen in the backpack.", "Loves trains.")"""
+    medical, general = [], []
+    parts = []
+    for piece in re.split(r"(?<=[.;!?])\s+|\n+|\s+[-–—]\s+|;\s*", text):
+        # Split on commas only where an allergy sits in a list of other things ("nut allergy, takes 2 snacks").
+        parts += re.split(r",\s+", piece) if MEDICAL_RE.search(piece) and "," in piece else [piece]
+    for part in parts:
+        part = part.strip(" ,;.-–—")
+        if part:
+            (medical if MEDICAL_RE.search(part) else general).append(part[:1].upper() + part[1:] + ".")
+    return " ".join(medical), " ".join(general)
+
+
+def _add_to_kid(kid_id: str, notes: str = "", allergies: str = "") -> None:
+    old = db.one("SELECT notes, allergies FROM kids WHERE id = ?", kid_id)
+    db.run("UPDATE kids SET notes = ?, allergies = ? WHERE id = ?", f"{old['notes']} {notes}".strip()[:500],
+           f"{old['allergies']} {allergies}".strip()[:300], kid_id)
+
+
+def _save_notes(user_id: str, kid_ids: list[str], text: str | dict[str, str]) -> None:
+    """Save what a parent wrote about these kids: shared out between them, then split into allergies and notes."""
+    kids = [db.one("SELECT id, name FROM kids WHERE id = ?", k) for k in kid_ids]
+    by_name = text if isinstance(text, dict) else split_notes(text[:1000], [k["name"] for k in kids])
+    for k in kids:
+        if k["name"] in by_name:
+            allergies, notes = split_medical(by_name[k["name"]])
+            _add_to_kid(k["id"], notes=notes, allergies=allergies)
+
+
+def _summary(user_id: str) -> None:
+    """What Village saved about each kid, so the parent can check it."""
+    blocks = []
+    for k in db.all_("SELECT * FROM kids WHERE parent_id = ? ORDER BY rowid", user_id):
+        blocks.append(f"*Name:* {k['name']}\n*Age:* {k['age']}\n*Allergies:* {k['allergies'] or 'None mentioned'}\n"
+                      f"*General notes:* {k['notes'] or 'None'}")
+    channels.send(user_id, "Here's what I saved 🔒 I only share it with the classmate who says yes, after they say "
+                           "yes.\n\n" + "\n\n".join(blocks) + "\n\nYou can edit this anytime on my Home tab.")
+
+
+def _ask_about_kids(user_id: str) -> None:
+    """At most one follow-up, depending on what the parent already said: nothing about a kid -> ask for anything
+    important, especially allergies; notes but no allergies -> ask only about allergies; all covered -> no question."""
+    kids = db.all_("SELECT id, name, notes, allergies FROM kids WHERE parent_id = ? ORDER BY rowid", user_id)
+    needing = [k for k in kids if not k["allergies"]]
+    if not needing:
+        _summary(user_id)
         _ask_village(user_id)
         return
-    _set(user_id, "kid_notes:" + ",".join(kid_ids))
-    kid = db.one("SELECT name FROM kids WHERE id = ?", kid_ids[0])
-    channels.send(user_id, f"Anything a helper should know about {kid['name']}? Allergies, favorite things, what's "
-                           "in the bag. 🔒 I only share this with the classmate who says yes, after they say yes.",
-                  [Button(label="Skip", action="setup_skip_notes")])
+    names = _join_and([k["name"] for k in needing])
+    many = len(needing) > 1
+    if any(not k["notes"] for k in needing):
+        _set(user_id, "kid_notes:" + ",".join(k["id"] for k in needing))
+        text = (f"Anything important a helper should know about {names}? *Especially allergies or medical needs*, "
+                "plus anything else that helps, like favorite things or what's in the bag."
+                + (" You can cover all of them in one message." if many else ""))
+    else:
+        _set(user_id, "kid_medical:" + ",".join(k["id"] for k in needing))
+        who = f"does {names}" if not many else f"do {names.replace(' and ', ' or ')}"
+        text = f"Thanks! Last thing: {who} have any allergies or medical needs a helper should know about?"
+    channels.send(user_id, f"{text} 🔒 I only share this with the classmate who says yes, after they say yes.")
 
 
 def _waiting_kids(user_id: str) -> list[str]:
+    """The kids a notes or allergy question is waiting on (kept in the step: kid_notes:<ids>, kid_medical:<ids>)."""
     current = step(user_id) or ""
-    return [k for k in current.removeprefix("kid_notes:").split(",") if k] if current.startswith("kid_notes:") else []
+    _, sep, ids = current.partition(":")
+    return [k for k in ids.split(",") if k] if sep and current.startswith(("kid_notes", "kid_medical")) else []
 
 
 def _ask_village(user_id: str) -> None:
@@ -251,7 +364,7 @@ def handle_text(user_id: str, text: str) -> bool:
     """A typed answer during setup. Returns True if the message was a setup answer."""
     current = step(user_id)
     if current == "kid":
-        kids = parse_kids(text)
+        kids, given = parse_kids_with_notes(text)
         if not kids:
             channels.send(user_id, "Sorry, I didn't catch that. Try first names and ages, like *Maya, 3*.")
             return True
@@ -260,15 +373,28 @@ def handle_text(user_id: str, text: str) -> bool:
         ids = [coordinator.add_kid(user_id, name, age, "") for name, age in kids]
         if len(kids) > 1:
             channels.send(user_id, "Added " + ", ".join(f"{n} ({a})" for n, a in kids) + ".")
-        _ask_notes(user_id, ids)
+        if given:                                  # notes came with the names
+            _save_notes(user_id, [i for i, (n, _) in zip(ids, kids) if n in given], given)
+        _ask_about_kids(user_id)
         return True
     if current and current.startswith("kid_notes"):
         waiting = _waiting_kids(user_id)
-        if waiting:
-            kid = db.one("SELECT name FROM kids WHERE id = ?", waiting[0])
-            db.run("UPDATE kids SET notes = ? WHERE id = ?", text[:500], waiting[0])
-            channels.send(user_id, f"Got it, saved for {kid['name']}. 🔒")
-        _ask_notes(user_id, waiting[1:])
+        if NO_RE.match(text):
+            for k in waiting:
+                _add_to_kid(k, allergies=NONE)
+        elif waiting:
+            _save_notes(user_id, waiting, text)
+        _summary(user_id)                          # one question only: whatever they said, move on
+        _ask_village(user_id)
+        return True
+    if current and current.startswith("kid_medical"):
+        waiting = _waiting_kids(user_id)
+        names = [db.one("SELECT name FROM kids WHERE id = ?", k)["name"] for k in waiting]
+        answers = {} if NO_RE.match(text) else split_notes(text[:600], names)
+        for kid_id, name in zip(waiting, names):     # it's an answer to the allergy question, so it all goes there
+            _add_to_kid(kid_id, allergies=answers.get(name) or NONE)
+        _summary(user_id)
+        _ask_village(user_id)
         return True
     return False
 
@@ -284,8 +410,9 @@ def handle_action(user_id: str, verb: str, arg: str, values: list[str], message_
             _ask_calendar(user_id, as_parent=False)
     elif verb == "setup_kids_done":
         _ask_village(user_id)
-    elif verb == "setup_skip_notes":
-        _ask_notes(user_id, _waiting_kids(user_id)[1:])
+    elif verb in ("setup_skip_notes", "setup_no_medical"):   # buttons from before setup asked one question
+        _summary(user_id)
+        _ask_village(user_id)
     elif verb == "setup_village":
         current = [r["villager_id"] for r in
                    db.all_("SELECT villager_id FROM village WHERE parent_id = ? ORDER BY rank", user_id)]
