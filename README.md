@@ -73,7 +73,7 @@ Set `PORTKEY_API_KEY` in `.env` (skip this if it's already in `../.env`; the app
 python3 backend/main.py
 ```
 
-Open **http://localhost:8000** (or set another port, e.g. `PORT=8010 python3 backend/main.py`). The first start builds `data/village.db` from `data/seed/`. **Reset demo** rebuilds it.
+Open **http://localhost:8000** (or set another port, e.g. `PORT=8010 python3 backend/main.py`). The first start builds the database, `data/village.db`, from the demo data in `data/seed/`. **Reset demo** rebuilds it. The database itself isn't in the repo, since a running copy holds real users' Slack accounts and calendar links.
 
 ### Try it
 
