@@ -258,3 +258,27 @@ async def test_booking_offers_add_to_calendar_links_with_only_the_basics():
     coordinator.cancel_request(rid)
     assert calendar_links.ics_file(rid, "hannah", token) is None            # link stops working once cancelled
     assert "delete it there" in last("hannah")["text"]
+
+
+async def test_someone_in_two_villages_is_asked_by_both_but_booked_once():
+    """Mei is in Priya's and Marcus's villages. Both ask her; once she says yes to one, the other takes her off."""
+    assert {r["parent_id"] for r in db.all_("SELECT parent_id FROM village WHERE villager_id = 'mei' "
+                                            "AND status = 'accepted'")} == {"priya", "marcus"}
+    priyas = make_request(verdicts={"mei": "available"})
+    marcuss = make_request(parent="marcus", start="13:00", end="13:50", verdicts={"mei": "available",
+                                                                                  "aisha": "available"})
+    await coordinator.send_wave(priyas)
+    await coordinator.send_wave(marcuss)
+    assert asks(priyas)["mei"] == "asked" and asks(marcuss)["mei"] == "asked"
+    assert any("Priya" in m["text"] for m in messages("mei")) and any("Marcus" in m["text"] for m in messages("mei"))
+
+    await coordinator.accept(priyas, "mei")
+    assert request(priyas)["helper_id"] == "mei"
+    assert asks(marcuss)["mei"] == "withdrawn"                      # can't be booked twice
+    assert "taken you off Marcus's request" in last("mei")["text"]
+    assert request(marcuss)["status"] == "searching"               # Marcus's search goes on with Aisha
+
+    # Leaving one village doesn't touch the other.
+    assert coordinator.leave_village("mei", "priya")
+    assert db.one("SELECT status FROM village WHERE parent_id = 'marcus' AND villager_id = 'mei'")["status"] == \
+        "accepted"

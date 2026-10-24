@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { clock } from '../format'
+import { GROUPS, groupOf } from '../groups'
 import { Mrkdwn } from '../mrkdwn'
 import type { Button, FormName, Message, User } from '../types'
 import { Avatar } from './Avatar'
@@ -131,16 +132,13 @@ export function SlackWindow({ label, users, userId, unread, onChangeUser, onSeen
         <label>
           Signed in as
           <select value={userId} onChange={(e) => onChangeUser(e.target.value)}>
-            <optgroup label="Parents">
-              {users.filter((u) => u.is_parent).map((u) => (
-                <option key={u.id} value={u.id}>{unread[u.id] ? '● ' : ''}{u.name}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Classmates">
-              {users.filter((u) => !u.is_parent).map((u) => (
-                <option key={u.id} value={u.id}>{unread[u.id] ? '● ' : ''}{u.name}</option>
-              ))}
-            </optgroup>
+            {GROUPS.map((g) => (
+              <optgroup key={g.key} label={g.title}>
+                {users.filter((u) => groupOf(u) === g.key).map((u) => (
+                  <option key={u.id} value={u.id}>{unread[u.id] ? '● ' : ''}{u.name}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </label>
         <button className="demo-bar-new" onClick={joinAsNew}>+ New classmate</button>

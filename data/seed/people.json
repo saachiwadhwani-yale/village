@@ -1,5 +1,5 @@
 {
-  "_note": "Six made-up SOM classmates for the demo: 2 parents (Priya, Marcus) and 4 villagers. Calendars are .ics files in data/seed/calendars. For a '1pm for 30 min' request from Priya, each villager shows a different case: Sam is busy only on his second calendar, Diego's class ends right at the handoff, Mei has a tentative meeting she'd skip, Hannah is free. Marcus's village includes Priya, a parent helping a parent.",
+  "_note": "Made-up SOM classmates for the demo. After Reset demo, 'demo' says how each person starts: 'ready' (set up), 'invited' (set up, with a pending invite to Priya's village), or 'new' (not set up; goes through setup from the first question). Calendars are .ics files in data/seed/calendars. For a '1pm for 30 min' request from Priya: Sam is busy only on his second calendar, Diego's class ends right at the handoff, Mei has a tentative meeting she'd skip, Hannah is free.",
   "users": [
     {
       "id": "priya",
@@ -15,7 +15,8 @@
           "label": "Google",
           "file": "priya_google.ics"
         }
-      ]
+      ],
+      "demo": "ready"
     },
     {
       "id": "marcus",
@@ -31,7 +32,8 @@
           "label": "Google",
           "file": "marcus_google.ics"
         }
-      ]
+      ],
+      "demo": "new"
     },
     {
       "id": "sam",
@@ -51,7 +53,8 @@
           "label": "Personal Google",
           "file": "sam_personal_google.ics"
         }
-      ]
+      ],
+      "demo": "ready"
     },
     {
       "id": "diego",
@@ -67,7 +70,8 @@
           "label": "Yale Outlook",
           "file": "diego_yale_outlook.ics"
         }
-      ]
+      ],
+      "demo": "new"
     },
     {
       "id": "mei",
@@ -95,7 +99,8 @@
           "label": "Research lab",
           "file": "mei_lab.ics"
         }
-      ]
+      ],
+      "demo": "ready"
     },
     {
       "id": "hannah",
@@ -111,7 +116,19 @@
           "label": "Google",
           "file": "hannah_google.ics"
         }
-      ]
+      ],
+      "demo": "invited"
+    },
+    {
+      "id": "jordan",
+      "name": "Jordan Lee",
+      "program": "MBA '28",
+      "color": "#047857",
+      "is_parent": false,
+      "help_count_week": 0,
+      "help_count_total": 0,
+      "calendars": [],
+      "demo": "new"
     }
   ],
   "kids": [
@@ -139,21 +156,15 @@
     },
     {
       "parent_id": "priya",
-      "villager_id": "diego",
+      "villager_id": "mei",
       "status": "accepted",
       "rank": 2
     },
     {
       "parent_id": "priya",
-      "villager_id": "mei",
-      "status": "accepted",
-      "rank": 3
-    },
-    {
-      "parent_id": "priya",
       "villager_id": "hannah",
-      "status": "accepted",
-      "rank": 4
+      "status": "pending",
+      "rank": 3
     },
     {
       "parent_id": "marcus",

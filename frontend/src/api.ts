@@ -32,7 +32,7 @@ export const api = {
   newUser: (name: string, program: string) => call<User>('/users', json('POST', { name, program })),
   open: (userId: string) => call(`/users/${userId}/open`, { method: 'POST' }),
   restartSetup: (userId: string) => call(`/users/${userId}/setup/restart`, { method: 'POST' }),
-  addKid: (userId: string, name: string, age: number, notes: string) =>
+  addKid: (userId: string, name: string, age: string, notes: string) =>
     call<User>(`/users/${userId}/kids`, json('POST', { name, age, notes })),
   removeKid: (userId: string, kidId: string) => call<User>(`/users/${userId}/kids/${kidId}`, { method: 'DELETE' }),
   setVillage: (userId: string, villagerIds: string[]) =>

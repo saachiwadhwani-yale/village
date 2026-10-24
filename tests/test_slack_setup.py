@@ -51,7 +51,7 @@ async def test_parent_setup_conversation():
     await coordinator.handle_message(me, "she's 3")                   # not a name: asks again
     assert "didn't catch that" in last(me)["text"]
     await coordinator.handle_message(me, "Maya, 3")
-    assert tuple(db.one("SELECT name, age FROM kids WHERE parent_id = ?", me)) == ("Maya", 3)
+    assert tuple(db.one("SELECT name, age FROM kids WHERE parent_id = ?", me)) == ("Maya", "3")
     await coordinator.handle_message(me, "Loves trains. Snack in the blue bag.")
     assert "Loves trains" in db.one("SELECT notes FROM kids WHERE parent_id = ?", me)["notes"]
 
@@ -62,12 +62,59 @@ async def test_parent_setup_conversation():
         "Invited Hannah, Sam"
     assert "would like to add you" in last("hannah")["text"]
 
-    assert "connect your calendar" in last(me)["text"]
-    assert "Skip for now" not in last(me)["buttons"]                    # a calendar or a description is required
-    describe(me, "Free most afternoons")
+    # Parents aren't asked when they're free until they're in someone else's village.
     assert onboarding.step(me) == "done"
     assert "You're all set" in last(me)["text"] and "coffee chat" in last(me)["text"]
     assert all(m["used"] for m in messages(me) if m["buttons"])      # no setup buttons left open
+
+
+async def test_several_kids_in_one_message_each_get_notes():
+    me = new_classmate("w_dana", "Dana Ruiz")
+    onboarding.start(me)
+    await tap(me, "Yes, I'm a parent")
+    await coordinator.handle_message(me, "Maya 3 and leo, 5")
+    assert [tuple(k) for k in db.all_("SELECT name, age FROM kids WHERE parent_id = ? ORDER BY rowid", me)] == \
+        [("Maya", "3"), ("Leo", "5")]
+    assert "about Maya" in last(me)["text"]
+    await coordinator.handle_message(me, "Loves trains")
+    assert "about Leo" in last(me)["text"]
+    await tap(me, "Skip")
+    assert "Who do you want in your village?" in last(me)["text"] and "Maya or Leo" in last(me)["text"]
+    assert db.one("SELECT notes FROM kids WHERE parent_id = ? AND name = 'Maya'", me)["notes"] == "Loves trains"
+
+
+def test_parse_kids():
+    assert onboarding.parse_kids("Maya, 3") == [("Maya", "3")]
+    assert onboarding.parse_kids("Maya (3), Leo (5) and Ana 1") == [("Maya", "3"), ("Leo", "5"), ("Ana", "1")]
+    assert onboarding.parse_kids("Mary Ann, 4") == [("Mary Ann", "4")]
+    assert onboarding.parse_kids("Ana, 6 months and Leo 2 years") == [("Ana", "6 months"), ("Leo", "2")]
+    assert onboarding.parse_kids("Ana 1 month") == [("Ana", "1 month")]
+    assert onboarding.parse_kids("she's 3") == []
+
+
+async def test_parent_is_asked_for_free_times_on_joining_a_village():
+    me = new_classmate("w_lee", "Lee Park")
+    onboarding.start(me)
+    await tap(me, "Yes, I'm a parent")
+    await coordinator.handle_message(me, "Ana, 2")
+    await tap(me, "Skip")
+    await tap(me, "Skip for now")
+    assert onboarding.step(me) == "done" and not onboarding.has_free_times(me)
+    home = _home_blocks(me, None)
+    assert "Connect a calendar or describe" not in json.dumps(home)   # no nagging before they're in a village
+
+    coordinator.set_village("priya", ["sam", "diego", "mei", "hannah", me])
+    await tap(me, "Join")
+    assert onboarding.step(me) == "calendar_joined"
+    assert "Now that you're in a classmate's village" in last(me)["text"]
+    describe(me, "Free Fridays")
+    assert onboarding.step(me) == "done"
+    assert "Thanks!" in last(me)["text"] and "Ana" in last(me)["text"]
+
+    # Someone who already shared free times isn't asked again when they join another village.
+    coordinator.set_village("marcus", ["hannah", "mei", "priya", me])
+    await tap(me, "Join")
+    assert onboarding.step(me) == "done"
 
 
 async def test_helper_answer_wins_even_with_a_kid_on_file():
@@ -76,7 +123,7 @@ async def test_helper_answer_wins_even_with_a_kid_on_file():
     coordinator.add_kid(me, "Kid", 3, "")
     onboarding.start(me)
     await tap(me, "No, I'm here to help")
-    assert "if your calendar says you're free" in last(me)["text"]
+    assert "Last step" in last(me)["text"] and "only ask you if you look free" in last(me)["text"]
     describe(me, "Tuesdays after 2")
     final = last(me)["text"]
     assert "When a parent adds you to their village" in final and "coffee chat" not in final
@@ -159,8 +206,12 @@ async def test_slack_draws_setup_with_a_people_picker_and_form_buttons(slack):
     await tap(me, "Skip")
     await drain(slack)
     village_q = slack.client.posts[-1]["blocks"]
-    assert any(b.get("accessory", {}).get("type") == "multi_users_select" for b in village_q)
+    row = next(b for b in village_q if b["type"] == "actions")["elements"]
+    assert [e["text"]["text"] for e in row] == ["Pick classmates…", "Skip for now"]   # one row; picker opens a pop-up
+    assert row[0]["action_id"].startswith("village_pick_")
     await tap(me, "Skip for now")
+    coordinator.set_village("priya", ["sam", "diego", "mei", "hannah", me])
+    await tap(me, "Join")                                          # in a village now: asked for free times
     await drain(slack)
     calendar_q = slack.client.posts[-1]["blocks"]
     actions = next(b for b in calendar_q if b["type"] == "actions")["elements"]
@@ -188,3 +239,41 @@ async def test_home_tab_summary_is_valid_for_every_kind_of_person(slack):
     assert "Hannah Weiss  ·  ⏳ Invited" in text and "Finish setting up" in text
     assert "order" not in text                                                 # no ranking of villagers
     assert "Helping parents" in json.dumps(_home_blocks("hannah", None), ensure_ascii=False)   # not a parent
+
+
+async def test_reset_starts_everyone_at_setup_with_demo_answers():
+    """Reset demo: demo people start brand-new, with their seed answers as hints and their calendars one tap away."""
+    db.reset(fresh_setup=True)
+    coordinator.welcome_everyone()
+    assert db.one("SELECT COUNT(*) AS n FROM kids")["n"] == 0
+    assert db.one("SELECT COUNT(*) AS n FROM village")["n"] == 0
+    assert db.one("SELECT MAX(help_count_total) AS n FROM users")["n"] == 0   # no made-up history either
+    assert "Are you a parent?" in last("priya")["text"] and "Are you a parent?" in last("mei")["text"]
+
+    await tap("mei", "No, I'm here to help")
+    assert last("mei")["buttons"][:3] == ["Use my demo calendars (demo only)", "Connect a calendar",
+                                          "Describe my availability instead"]
+    await tap("mei", "Use my demo calendars (demo only)")
+    assert db.one("SELECT COUNT(*) AS n FROM calendars WHERE user_id = 'mei'")["n"] == 2
+    assert "skip a club meeting" in db.one("SELECT availability_text FROM users WHERE id = 'mei'")["availability_text"]
+    assert onboarding.step("mei") == "done"
+
+    await tap("priya", "Yes, I'm a parent")
+    await coordinator.handle_message("priya", "Arjun, 6 months")
+    assert db.one("SELECT age FROM kids WHERE parent_id = 'priya'")["age"] == "6 months"
+
+
+async def test_reset_with_the_real_demo_data_starts_people_as_described(monkeypatch):
+    """data/seed: Priya set up with Sam and Mei, Hannah set up and invited, Marcus/Diego/Jordan brand-new."""
+    from pathlib import Path
+    monkeypatch.setattr(db, "SEED_DIR", Path(__file__).resolve().parents[1] / "data" / "seed")
+    db.reset(fresh_setup=True)
+    coordinator.welcome_everyone()
+    assert {r["villager_id"]: r["status"] for r in db.all_("SELECT * FROM village WHERE parent_id = 'priya'")} == \
+        {"sam": "accepted", "mei": "accepted", "hannah": "pending"}
+    assert {r["id"] for r in db.all_("SELECT id FROM users WHERE onboarding = 'done'")} == {"priya", "sam", "mei", "hannah"}
+    assert "You're set up with Arjun (4) and Sam and Mei in your village" in last("priya")["text"]
+    assert "would like to add you" in last("hannah")["text"]
+    for new in ("marcus", "diego", "jordan"):
+        assert "Are you a parent?" in last(new)["text"]
+        assert not db.one("SELECT 1 FROM calendars WHERE user_id = ?", new)

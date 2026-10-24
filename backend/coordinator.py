@@ -605,6 +605,7 @@ async def accept(request_id: int, villager_id: str) -> None:
                   + ([Button(label="I can't make it anymore", action="helper_cancel", request_id=request_id)]
                      if can_back_out else []),
                   request_id)
+    await _withdraw_other_asks(villager_id, request_id, care_start, care_end)
 
 
 def _calendar_buttons(request_id: int, user_id: str) -> list[Button]:
@@ -735,6 +736,28 @@ async def helper_back_out(request_id: int, helper_id: str, confirmed: bool = Fal
     await send_wave(request_id, replacing=first(helper_id))
 
 
+async def _withdraw_other_asks(villager_id: str, booked_id: int, care_start: datetime, care_end: datetime) -> None:
+    """Someone in several villages just said yes to one parent: take back their open asks from other parents
+    that day (or, without the once-a-day rule, ones that overlap), so they can't be booked twice."""
+    rows = db.all_("SELECT a.request_id, r.parent_id, r.care_start, r.care_end FROM asks a "
+                   "JOIN requests r ON r.id = a.request_id WHERE a.villager_id = ? AND a.request_id != ? "
+                   "AND a.status IN ('asked','countered') AND r.status = 'searching'", villager_id, booked_id)
+    for r in rows:
+        start, end = _dt(r["care_start"]), _dt(r["care_end"])
+        clash = start.date() == care_start.date() if ONE_ANSWER_PER_DAY else start < care_end and care_start < end
+        if not clash:
+            continue
+        db.run("UPDATE asks SET status = 'withdrawn' WHERE request_id = ? AND villager_id = ?", r["request_id"],
+               villager_id)
+        channels.retire_buttons(r["request_id"], villager_id)
+        channels.send(villager_id, f"Since you're helping {first(_request(booked_id)['parent_id'])} that day, I've "
+                                   f"taken you off {first(r['parent_id'])}'s request. No need to answer it.",
+                      request_id=r["request_id"])
+        db.log_event(r["request_id"], "step", f"{first(villager_id)} is already helping someone else that day.")
+        if _outstanding(r["request_id"]) == 0:
+            await send_wave(r["request_id"])
+
+
 async def decline(request_id: int, villager_id: str) -> None:
     db.run("UPDATE asks SET status = 'declined', answered_at = ? WHERE request_id = ? AND villager_id = ?",
            _real_now(), request_id, villager_id)
@@ -812,8 +835,8 @@ async def _answer_invite(villager_id: str, parent_id: str, yes: bool) -> None:
     if not changed:
         return
     if yes:
-        channels.send(villager_id, f"You're in {first(parent_id)}'s village. Thank you! Add your calendars or "
-                                   "availability on your Village profile (my Home tab in Slack) so I only ask when you're free.")
+        channels.send(villager_id, f"You're in {first(parent_id)}'s village. Thank you!")
+        onboarding.ask_parent_for_free_times(villager_id)   # parents share their free times when they first join one
         channels.send(parent_id, f"{first(villager_id)} joined your village.")
     else:
         channels.send(villager_id, "No problem. You won't get requests from them.")
@@ -881,14 +904,14 @@ def set_pause(user_id: str, mode: str) -> str | None:
     return until
 
 
-def add_kid(parent_id: str, name: str, age: int, notes: str) -> str:
+def add_kid(parent_id: str, name: str, age: str, notes: str) -> str:
     """Adding a child makes someone a parent, with their own village."""
     n = db.one("SELECT COUNT(*) AS n FROM kids WHERE parent_id = ?", parent_id)["n"]
     kid_id = f"{parent_id}_kid{n + 1}"
     while db.one("SELECT 1 FROM kids WHERE id = ?", kid_id):
         n += 1
         kid_id = f"{parent_id}_kid{n + 1}"
-    db.run("INSERT INTO kids VALUES (?,?,?,?,?)", kid_id, parent_id, name.strip(), age, notes.strip())
+    db.run("INSERT INTO kids VALUES (?,?,?,?,?)", kid_id, parent_id, name.strip(), str(age), notes.strip())
     db.run("UPDATE users SET is_parent = 1 WHERE id = ?", parent_id)
     return kid_id
 
@@ -906,7 +929,14 @@ def remove_kid(parent_id: str, kid_id: str) -> str | None:
     return None
 
 
-def send_seed_invites() -> None:
+def welcome_everyone() -> None:
+    """After a reset: new people get the first setup question (in the web demo or Slack), set-up demo
+    people get a short hello, and pending village invites go out."""
+    for row in db.all_("SELECT id, onboarding FROM users ORDER BY is_parent DESC, name"):
+        if row["onboarding"] is None:
+            onboarding.start(row["id"])
+        else:
+            onboarding.hello(row["id"])
     for row in db.all_("SELECT parent_id, villager_id FROM village WHERE status = 'pending'"):
         send_invite(row["parent_id"], row["villager_id"])
 

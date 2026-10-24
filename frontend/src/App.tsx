@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
+import { PeopleGuide } from './components/PeopleGuide'
 import { RequestPanel } from './components/RequestPanel'
 import { SlackWindow } from './components/SlackWindow'
-import type { CareRequest, TraceEvent, UsageSummary, User } from './types'
+import type { CareRequest, TraceEvent, User } from './types'
 
 export default function App() {
   const [showPanel, setShowPanel] = useState(true)
+  const [tab, setTab] = useState<'people' | 'trace'>('people')
   const [users, setUsers] = useState<User[]>([])
   const [left, setLeft] = useState('priya')
   const [right, setRight] = useState('hannah')
@@ -13,7 +15,6 @@ export default function App() {
   const [seen, setSeen] = useState<Record<string, number>>({})
   const [requests, setRequests] = useState<CareRequest[]>([])
   const [events, setEvents] = useState<TraceEvent[]>([])
-  const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [offline, setOffline] = useState(false)
   const [resetting, setResetting] = useState(false)
 
@@ -27,10 +28,9 @@ export default function App() {
   useEffect(() => {
     const tick = async () => {
       try {
-        const [r, e, u, i] = await Promise.all([api.requests(), api.events(), api.usage(), api.inbox()])
+        const [r, e, i] = await Promise.all([api.requests(), api.events(), api.inbox()])
         setRequests(r)
         setEvents(e)
-        setUsage(u)
         setInbox(i)
         setOffline(false)
       } catch {
@@ -92,11 +92,11 @@ export default function App() {
         </div>
         <p className="topbar-hint">
           A browser stand-in for Slack. Each window is one person signed in to the demo workspace; Village is under
-          <b> Apps</b>. Use <b>Signed in as</b> above a window to switch people.
+          <b> Apps</b>. Switch people with <b>Signed in as</b>, or from the people guide on the right.
         </p>
         <div className="controls">
             <button className="ghost" onClick={() => setShowPanel(!showPanel)}>
-              {showPanel ? 'Hide' : 'Show'} behind the scenes
+              {showPanel ? 'Hide' : 'Show'} side panel
             </button>
             <button className="ghost" onClick={reset} disabled={resetting}>
               {resetting ? 'Resetting…' : 'Reset demo'}
@@ -112,11 +112,24 @@ export default function App() {
 
       {users.length > 0 && (
         <main className={`demo ${showPanel ? 'with-panel' : ''}`}>
-          <SlackWindow label="Window 1 · try a parent" users={users} userId={left} unread={unread} onChangeUser={setLeft} onSeen={onSeen}
+          <SlackWindow label="Window 1" users={users} userId={left} unread={unread} onChangeUser={setLeft} onSeen={onSeen}
             onUsersChanged={() => loadUsers().catch(() => undefined)} />
-          <SlackWindow label="Window 2 · try a classmate" users={users} userId={right} unread={unread} onChangeUser={setRight} onSeen={onSeen}
+          <SlackWindow label="Window 2" users={users} userId={right} unread={unread} onChangeUser={setRight} onSeen={onSeen}
             onUsersChanged={() => loadUsers().catch(() => undefined)} />
-          {showPanel && <RequestPanel requests={requests} events={events} usage={usage} />}
+          {showPanel && (
+            <section className="panel">
+              <div className="panel-tabs">
+                <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>People</button>
+                <button className={tab === 'trace' ? 'on' : ''} onClick={() => setTab('trace')}>Behind the scenes</button>
+              </div>
+              {tab === 'people' ? (
+                <PeopleGuide users={users} left={left} right={right}
+                  onOpen={(w, id) => (w === 1 ? setLeft(id) : setRight(id))} />
+              ) : (
+                <RequestPanel requests={requests} events={events} />
+              )}
+            </section>
+          )}
         </main>
       )}
 

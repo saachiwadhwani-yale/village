@@ -25,7 +25,7 @@ Routes:
     GET  /api/requests                      care requests with each villager's verdict and status
     GET  /api/events                        the behind-the-scenes trace
     GET  /api/usage                         tokens and cost by agent and by request
-    POST /api/reset                         rebuild the demo data
+    POST /api/reset                         start everyone over from setup
 """
 
 from __future__ import annotations
@@ -68,8 +68,8 @@ def _background(coro) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not db.DB_PATH.exists():
-        db.reset()
-        coordinator.send_seed_invites()
+        db.reset(fresh_setup=True)
+        coordinator.welcome_everyone()
     db.migrate()
     ticker = asyncio.create_task(coordinator.ticker())
     slack = await _start_slack()
@@ -138,6 +138,8 @@ def _user(row) -> User:
         paused=bool(row["paused_until"]) and row["paused_until"] > db.now().strftime("%Y-%m-%dT%H:%M"),
         paused_until=("indefinite" if row["paused_until"] == coordinator.PAUSE_FOREVER else row["paused_until"]),
         onboarding=row["onboarding"], on_slack=bool(row["slack_id"]),
+        invited_to=[r["parent_id"] for r in db.all_(
+            "SELECT parent_id FROM village WHERE villager_id = ? AND status = 'pending'", uid)],
     )
 
 
@@ -363,11 +365,12 @@ def usage() -> UsageSummary:
 
 
 @app.post("/api/reset")
-def reset() -> dict:
+async def reset() -> dict:
+    """Everyone, including Slack users, starts over from the first setup question."""
     if _tasks:
         raise HTTPException(409, "Village is still working on something. Try again in a few seconds.")
-    db.reset()
-    coordinator.send_seed_invites()
+    db.reset(fresh_setup=True)
+    coordinator.welcome_everyone()
     channels.typing.clear()
     return {"ok": True}
 

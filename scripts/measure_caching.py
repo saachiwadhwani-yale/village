@@ -1,7 +1,7 @@
 """Measure prompt caching: tokens, cached tokens, cost, and verdicts for the demo request.
 
-Runs the same request several times on a throwaway copy of the demo data with a fixed
-clock: Priya asks for help with a 1pm coffee chat, Village checks her village, and the
+Runs the same request several times on a throwaway copy of the frozen demo data in
+tests/seed (Priya with a village of Sam, Diego, Mei, and Hannah) with a fixed clock: Priya asks for help with a 1pm coffee chat, Village checks her village, and the
 first person asked replies "yes, happy to!". Every agent run's usage is recorded.
 
     python3 scripts/measure_caching.py --label before
@@ -95,6 +95,7 @@ def summarize(trials: list[dict]) -> dict:
 async def main(label: str, trials: int, pause: float) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         db.DB_PATH = config.DB_PATH = Path(tmp) / "village.db"
+        db.SEED_DIR = ROOT / "tests" / "seed"   # the frozen demo data the measurements were made on
         runner.AUDIT_LOG = Path(tmp) / "audit.jsonl"
         results = []
         for i in range(trials):

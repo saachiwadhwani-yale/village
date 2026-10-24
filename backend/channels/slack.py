@@ -35,7 +35,7 @@ import channels
 import db
 import onboarding
 from calendars import CalendarError, normalize_url, validate_link
-from models import Button
+from models import Button, age_label
 
 log = logging.getLogger("village.slack")
 
@@ -180,15 +180,12 @@ class SlackChannel:
         if buttons and not msg["buttons_used"]:
             elements = []
             for i, b in enumerate(buttons):
-                if b.get("kind") == "people":
-                    # Slack only allows a multi-select as a section accessory, so it gets its own block.
-                    blocks.append({"type": "section", "block_id": json.dumps({"a": b["action"], "m": msg["id"]}),
-                                   "text": {"type": "mrkdwn", "text": " "},
-                                   "accessory": {"type": "multi_users_select", "action_id": "village_people",
-                                                 "placeholder": {"type": "plain_text", "text": b["label"][:75]}}})
-                    continue
                 el = {"type": "button", "text": {"type": "plain_text", "text": b["label"][:75]}}
-                if b.get("kind") == "link":
+                if b.get("kind") == "people":
+                    # A button that opens Slack's people picker in a pop-up, so it sits in the same row.
+                    el["action_id"] = f"village_pick_{i}"
+                    el["value"] = json.dumps({"a": b["action"], "m": msg["id"]})
+                elif b.get("kind") == "link":
                     el["action_id"] = f"village_link_{i}"
                     el["url"] = b["url"]
                 elif b.get("kind") == "form":
@@ -295,19 +292,10 @@ class SlackChannel:
             channels.typing.add(user_id)
             self._spawn(_coordinator().handle_button(user_id, value["a"], value["r"], value["m"]))
 
-        @app.action("village_people")
-        async def on_people(ack, body, action, respond):
+        @app.action(re.compile(r"^village_pick_\d+$"))
+        async def on_pick_people(ack, body, action):
             await ack()
-            meta = json.loads(action["block_id"])
-            user_id, _ = await self.user_for(body["user"]["id"])
-            refusal = channels.check_press(user_id, meta["a"], meta["m"])
-            if refusal:
-                await respond(text=f"{refusal} Nothing changed.", response_type="ephemeral", replace_original=False)
-                return
-            picked = [(await self.user_for(sid))[0] for sid in action.get("selected_users", [])
-                      if sid != body["user"]["id"] and not _is_bot(sid) and not await self._is_bot_account(sid)]
-            if picked:
-                self._spawn(_coordinator().handle_button(user_id, meta["a"], None, meta["m"], values=picked))
+            await self.client.views_open(trigger_id=body["trigger_id"], view=_add_people_modal(action["value"]))
 
         @app.action(re.compile(r"^village_link_\d+$"))
         async def on_link(ack):
@@ -330,12 +318,14 @@ class SlackChannel:
             values = view["state"]["values"]
             name = values["name"]["v"]["value"].strip()
             age_text = values["age"]["v"]["value"].strip()
-            if not age_text.isdigit() or not 0 <= int(age_text) <= 17:
-                await ack(response_action="errors", errors={"age": "Enter an age in years, like 4."})
+            age = age_label(age_text)
+            if age is None:
+                await ack(response_action="errors", errors={"age": "Enter an age in years, like 4, or months, "
+                                                                    "like 6 months."})
                 return
             await ack()
             user_id, _ = await self.user_for(body["user"]["id"])
-            _coordinator().add_kid(user_id, name, int(age_text), (values["notes"]["v"].get("value") or ""))
+            _coordinator().add_kid(user_id, name, age, (values["notes"]["v"].get("value") or ""))
             await self.publish_home(body["user"]["id"])
 
         @app.view("add_villagers")
@@ -343,15 +333,19 @@ class SlackChannel:
             await ack()
             slack_id = body["user"]["id"]
             user_id, _ = await self.user_for(slack_id)
-            current = [r["villager_id"] for r in
-                       db.all_("SELECT villager_id FROM village WHERE parent_id = ? ORDER BY rank", user_id)]
+            picked = []
             for sid in view["state"]["values"]["people"]["v"].get("selected_users", []):
                 if sid == slack_id or _is_bot(sid) or await self._is_bot_account(sid):
                     continue
-                vid, _ = await self.user_for(sid)
-                if vid not in current:
-                    current.append(vid)
-            _coordinator().set_village(user_id, current)
+                picked.append((await self.user_for(sid))[0])
+            if view.get("private_metadata"):     # opened from a setup question in the chat
+                meta = json.loads(view["private_metadata"])
+                if picked and channels.check_press(user_id, meta["a"], meta["m"]) is None:
+                    self._spawn(_coordinator().handle_button(user_id, meta["a"], None, meta["m"], values=picked))
+                return
+            current = [r["villager_id"] for r in
+                       db.all_("SELECT villager_id FROM village WHERE parent_id = ? ORDER BY rank", user_id)]
+            _coordinator().set_village(user_id, current + [v for v in picked if v not in current])
             await self.publish_home(slack_id)
 
         @app.view("add_calendar")
@@ -503,10 +497,10 @@ def _home_blocks(user_id: str, note: str | None) -> list[dict]:
     ]
     if note:
         blocks.append(_section(f"*{_esc(note)}*"))
-    if u["onboarding"] != "done":
+    if u["onboarding"] not in onboarding.DONE:
         blocks.append(_section("👋 *Finish setting up in the Messages tab.* I'm asking you a few quick questions there.",
                                _button("Start over", "home_redo_setup")))
-    elif not onboarding.has_free_times(user_id):
+    elif not onboarding.has_free_times(user_id) and (not u["is_parent"] or in_villages):
         blocks.append(_section("⚠️ *Connect a calendar or describe when you're usually free*, so I know when to ask "
                                "you.", _button("Connect a calendar", "home_add_cal_warn", "add_calendar")))
     blocks.append({"type": "divider"})
@@ -575,7 +569,7 @@ def _home_blocks(user_id: str, note: str | None) -> list[dict]:
                              f"You won't get their requests anymore, and {parent_first} will be told you've stepped "
                              "back. A time you already said yes to stays booked.", "Leave"))))
 
-    if u["onboarding"] == "done":
+    if u["onboarding"] in onboarding.DONE:
         blocks.append({"type": "actions", "elements": [_button("Redo setup questions", "home_redo_setup")]})
 
     # Testing with demo people (they live in the web app, so Slack's people picker can't show them)
@@ -617,19 +611,20 @@ def _modal(callback_id: str, title: str, blocks: list[dict], submit: str = "Save
 def _kid_modal() -> dict:
     return _modal("add_kid", "Add a kid", [
         _input("name", "First name", {"type": "plain_text_input", "max_length": 40}),
-        _input("age", "Age", {"type": "plain_text_input", "max_length": 2}),
+        _input("age", "Age", {"type": "plain_text_input", "max_length": 12,
+                             "placeholder": {"type": "plain_text", "text": "e.g. 4 or 6 months"}}),
         _input("notes", "Notes for whoever helps", {"type": "plain_text_input", "multiline": True, "max_length": 500},
                optional=True, hint="Allergies, favorite things, what's in the bag. Only shared with the classmate "
                                    "who says yes, after they say yes."),
     ])
 
 
-def _add_people_modal() -> dict:
-    return _modal("add_villagers", "Add to your village", [
-        _input("people", "Who would you trust with your kid?",
+def _add_people_modal(metadata: str = "") -> dict:
+    return _modal("add_villagers", "Your village", [
+        _input("people", "Who do you want in your village?",
                {"type": "multi_users_select", "placeholder": {"type": "plain_text", "text": "Pick classmates…"}},
-               hint="Each person gets an invite first and can say yes or no."),
-    ], submit="Invite")
+               hint="Each person gets a message asking if they want to join, and can say yes or no."),
+    ], submit="Invite", metadata=metadata)
 
 
 def _calendar_modal(metadata: str = "") -> dict:

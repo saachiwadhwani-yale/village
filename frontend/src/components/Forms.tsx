@@ -76,9 +76,9 @@ export function KidForm({ user, onDone, onClose }: FormProps) {
   const { busy, error, run } = useSubmit(onDone)
   return (
     <Modal title="Add a kid" submit="Save" busy={busy} error={error} onClose={onClose}
-      onSubmit={() => run(() => api.addKid(user.id, name.trim(), Number(age), notes))}>
+      onSubmit={() => run(() => api.addKid(user.id, name.trim(), age.trim(), notes))}>
       <label>First name<input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required /></label>
-      <label>Age<input value={age} onChange={(e) => setAge(e.target.value)} inputMode="numeric" pattern="\d{1,2}" required /></label>
+      <label>Age<input value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 4 or 6 months" required /></label>
       <label>
         Notes for whoever helps <span className="optional">(optional)</span>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={500} />

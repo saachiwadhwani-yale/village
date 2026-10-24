@@ -39,15 +39,18 @@ export function Home({ user, users, onChanged }: Props) {
       ? '⏸ Paused until you turn it back on'
       : `⏸ Paused until ${day(user.paused_until)} at ${clock(user.paused_until)}`
 
+  // calendar_joined: a parent who finished setup and was later asked for their free times.
+  const setupDone = user.onboarding === 'done' || user.onboarding === 'calendar_joined'
+
   return (
     <div className="home">
       <h2>🏡 Your Village profile</h2>
       <p className="home-sub">To ask for help, just message Village in the <b>Messages</b> tab.</p>
       {note && <p className="home-note">{note}</p>}
-      {user.onboarding !== 'done' ? (
+      {!setupDone ? (
         <Line text={<><b>👋 Finish setting up in the Messages tab.</b> Village is asking you a few quick questions there.</>}
           action={<button className="sbtn small" onClick={() => run(() => api.restartSetup(user.id), 'Setup started again in Messages.')}>Start over</button>} />
-      ) : !hasFreeTimes && (
+      ) : !hasFreeTimes && (!user.is_parent || user.in_villages_of.length > 0) && (
         <Line text={<><b>⚠️ Connect a calendar or describe when you're usually free,</b> so Village knows when to ask you.</>}
           action={<button className="sbtn small" onClick={() => setForm('calendar')}>Connect a calendar</button>} />
       )}
@@ -112,7 +115,7 @@ export function Home({ user, users, onChanged }: Props) {
         </Section>
       )}
 
-      {user.onboarding === 'done' && (
+      {setupDone && (
         <div className="home-footer">
           <button className="sbtn" onClick={() => run(() => api.restartSetup(user.id), 'Setup started again in Messages.')}>
             Redo setup questions

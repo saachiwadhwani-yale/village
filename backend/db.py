@@ -25,7 +25,7 @@ CREATE TABLE users (
     help_count_total INTEGER NOT NULL DEFAULT 0,
     paused_until TEXT,                -- local ISO time; not asked for care that starts before this
     slack_id TEXT UNIQUE,             -- set for people who use Village through Slack
-    onboarding TEXT,                  -- Slack setup step: NULL (not started), role, kid, kid_notes, village, calendar, done
+    onboarding TEXT,                  -- setup step (see onboarding.py): NULL, role, kid, kid_notes:<ids>, village, calendar_helper, calendar_joined, done
     availability_text TEXT NOT NULL DEFAULT '',
     availability_parsed TEXT          -- JSON ParsedAvailability, or NULL
 );
@@ -33,7 +33,7 @@ CREATE TABLE kids (
     id TEXT PRIMARY KEY,
     parent_id TEXT NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
-    age INTEGER NOT NULL,
+    age TEXT NOT NULL,                -- years ("4") or months for babies ("6 months")
     notes TEXT NOT NULL DEFAULT ''    -- sensitive: only shown to the villager who accepts
 );
 CREATE TABLE village (
@@ -139,8 +139,18 @@ def connect(path=None):
         conn.close()
 
 
-def reset() -> None:
+def seed() -> dict:
+    return json.loads((SEED_DIR / "people.json").read_text())
+
+
+def reset(fresh_setup: bool = False) -> None:
     """Rebuild village.db from the seed file.
+
+    fresh_setup (what Reset demo does): each demo person starts the way their "demo"
+    field says: "ready" (set up), "invited" (set up, with a pending invite), or "new"
+    (not set up; their calendar files are one tap away during setup). No made-up
+    help history. People who joined through Slack keep their account but start
+    setup over. Without it (tests, scripts), everyone is fully set up from the seed.
 
     The new database is built in a temp file and swapped in at once, so the app
     (which keeps polling during a reset) never sees a half-built database.
@@ -148,31 +158,43 @@ def reset() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = DB_PATH.with_suffix(".db.tmp")
     tmp.unlink(missing_ok=True)
-    seed = json.loads((SEED_DIR / "people.json").read_text())
+    data = seed()
     keep = _slack_people()
+    new = set()
+    if fresh_setup:
+        new = {u["id"] for u in data["users"] if u.get("demo", "new") == "new"}
+        data = {**data,
+                "kids": [k for k in data["kids"] if k["parent_id"] not in new],
+                "village": [v for v in data["village"] if not {v["parent_id"], v["villager_id"]} & new],
+                "users": [{**u, "help_count_week": 0, "help_count_total": 0,
+                           **({"calendars": [], "availability_text": "", "availability_parsed": None,
+                               "is_parent": False} if u["id"] in new else {})} for u in data["users"]]}
+        keep = {"users": [{**u, "onboarding": None, "availability_text": "", "availability_parsed": None,
+                           "paused_until": None, "is_parent": 0, "help_count_week": 0, "help_count_total": 0}
+                           for u in keep.get("users", [])]}
     with connect(tmp) as conn:
         conn.executescript(SCHEMA)
-        for u in seed["users"]:
+        for u in data["users"]:
             parsed = u.get("availability_parsed")
             conn.execute(
                 "INSERT INTO users (id, name, program, color, is_parent, help_count_week, help_count_total,"
-                " availability_text, availability_parsed, onboarding) VALUES (?,?,?,?,?,?,?,?,?, 'done')",
+                " availability_text, availability_parsed, onboarding) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (u["id"], u["name"], u["program"], u["color"], int(u["is_parent"]),
                  u.get("help_count_week", 0), u.get("help_count_total", 0), u.get("availability_text", ""),
-                 json.dumps(parsed) if parsed else None),
+                 json.dumps(parsed) if parsed else None, None if u["id"] in new else "done"),
             )
             for c in u.get("calendars", []):
                 conn.execute(
                     "INSERT INTO calendars (user_id, label, source, kind) VALUES (?,?,?, 'file')",
                     (u["id"], c["label"], c["file"]),
                 )
-        for k in seed["kids"]:
+        for k in data["kids"]:
             conn.execute("INSERT INTO kids VALUES (?,?,?,?,?)",
                          (k["id"], k["parent_id"], k["name"], k["age"], k["notes"]))
-        for v in seed["village"]:
+        for v in data["village"]:
             conn.execute("INSERT INTO village VALUES (?,?,?,?)",
                          (v["parent_id"], v["villager_id"], v["status"], v["rank"]))
-        for key, value in seed["settings"].items():
+        for key, value in data["settings"].items():
             conn.execute("INSERT INTO settings VALUES (?,?)", (key, value))
         _restore(conn, keep)
     os.replace(tmp, DB_PATH)

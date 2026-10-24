@@ -7,10 +7,11 @@ The second half are the shapes the API sends to the React app.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Weekday = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 HHMM = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", description="24-hour time, HH:MM.")
@@ -144,11 +145,30 @@ class Message(BaseModel):
     created_at: str
 
 
+AGE_RE = re.compile(r"^\s*(\d{1,2})\s*(months?|mos?|mths?|m|years?|yrs?|y|y/?o)?(?:\s*old)?\s*$", re.I)
+
+
+def age_label(text: str | int) -> str | None:
+    """An age as people say it: "4" or "4 years" -> "4", "6 months" -> "6 months". None if it isn't one."""
+    m = AGE_RE.match(str(text))
+    if not m:
+        return None
+    n, unit = int(m.group(1)), (m.group(2) or "").lower()
+    if unit.startswith("m"):
+        return f"{n} month{'s' if n != 1 else ''}" if 0 < n <= 47 else None
+    return str(n) if n <= 17 else None
+
+
 class Kid(BaseModel):
     id: str
     name: str
-    age: int
+    age: str = Field(description='Years, like "4", or months for babies, like "6 months".')
     notes: str = ""
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def _as_text(cls, v):
+        return str(v)
 
 
 class Calendar(BaseModel):
@@ -182,6 +202,7 @@ class User(BaseModel):
     paused: bool = False
     onboarding: str | None = None
     on_slack: bool = False
+    invited_to: list[str] = Field(default=[], description="Parents whose village invite this person hasn't answered.")
     paused_until: str | None = Field(default=None, description="Local ISO time, or 'indefinite'.")
 
 
@@ -198,7 +219,15 @@ class ButtonPress(BaseModel):
 
 class AddKid(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    age: int = Field(ge=0, le=17)
+    age: str = Field(description='"4", "4 years", or "6 months".')
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def _age(cls, v):
+        label = age_label(v)
+        if label is None:
+            raise ValueError('Enter an age in years, like 4, or in months, like "6 months".')
+        return label
     notes: str = Field(default="", max_length=500)
 
 

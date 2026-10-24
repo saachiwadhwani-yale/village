@@ -28,7 +28,7 @@ export interface Message {
 export interface Kid {
   id: string
   name: string
-  age: number
+  age: string   // years ("4") or months for babies ("6 months")
   notes: string
 }
 
@@ -76,6 +76,7 @@ export interface User {
   paused: boolean
   paused_until: string | null
   onboarding: string | null
+  invited_to: string[]
   on_slack: boolean
 }
 

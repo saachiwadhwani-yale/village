@@ -48,9 +48,10 @@ All agents use **gpt-6-luna** through Portkey. Messaging, booking, and sharing t
 
 Village works the same way in Slack and in the web demo: you message it in a direct message, tap buttons, and edit your profile on its **Home** tab.
 
-- **Setting up:** the first time, Village asks a few questions in the chat: whether you're a parent, your kids' names, ages, and notes (parents), who you trust (parents pick classmates), and a calendar link or a description of when you're free.
+- **Setting up:** the first time, Village asks a few questions in the chat. Parents give their kids' names, ages (in years, or months for babies), and notes (several kids can go in one message) and pick who's in their village. Classmates who aren't parents connect a calendar or describe when they're free; parents are asked for this only once they join someone else's village.
 - **Asking for help (parents):** describe what you need in plain words, like *"Accounting tomorrow at 10:10, can someone take Arjun?"*. Village confirms the time with you, then asks classmates who look free. While it searches you can ask more people at once or cancel. If someone offers a different time, you accept or decline it.
 - **Helping (classmates):** tap **Yes, I can** or **Can't this time**, or reply in your own words (*"I can do 1:10 onward"*, or a question for the parent). If you say yes first, you get the kid's notes and add-to-calendar buttons. To back out, tap **I can't make it anymore**.
+- **Several villages:** a classmate can be in more than one parent's village. Once they say yes to one parent, their other open asks for that day are withdrawn, so they're never booked twice.
 - **Home tab:** add or remove kids, village members, and calendars; edit your written availability; pause for a while; or leave a village.
 
 ## Version 1: web demo
@@ -77,24 +78,47 @@ Open **http://localhost:8000** (or set another port, e.g. `PORT=8010 python3 bac
 
 ### Try it
 
-Each window is one person in a fake Slack workspace; Village is under **Apps**. Switch people with **Signed in as**.
+Two windows each show one person in a fake Slack workspace (Village is under **Apps**). The **People** tab on the right lists everyone in three groups with how each is set up right now; open anyone in either window from there or from **Signed in as**. After a start or **Reset demo**:
 
-1. **Ask as a parent.** As Priya, send *"I have a coffee chat at 1 for 30 min and need someone to hang out with my kid"* and tap **Find someone**. **Behind the scenes** shows each classmate screened by rules (⚙) or by an agent (✦).
-2. **Answer as a classmate.** Window 2 switches to someone who was asked. Tap **Yes, I can** or type a reply like *"I can only do 1:10 onward"*. Both sides get the booking and add-to-calendar buttons; the helper gets Arjun's notes.
-3. **Set up a new person.** Click **+ New classmate** and answer the setup questions in the chat.
+| Group | Who | How they start |
+|---|---|---|
+| Parents | **Priya** | Arjun, 4. Villagers: Sam, Mei, Hannah (invited). |
+| Classmates | **Sam** | In Priya's village. Connected to demo calendars. |
+| | **Mei** | In Priya's village. Connected to demo calendars. Availability described. |
+| | **Hannah** | Invited to Priya's village. Connected to demo calendar. |
+| New to Village | **Marcus**, **Diego**, **Jordan** | Not set up yet. |
+
+1. **Ask as Priya.** Send *"I have a coffee chat at 1 for 30 min and need someone to hang out with my kid"* and tap **Find someone**. The **Behind the scenes** tab shows each classmate screened by rules (⚙) or by their own agent (✦).
+2. **Answer as a classmate.** Window 2 switches to someone who was asked. Tap **Yes, I can**, or type a reply like *"I can only do 1:10 onward"*. Both sides get the booking and add-to-calendar buttons; the helper gets Arjun's notes.
+3. **Grow the village.** As Hannah, tap **Join**. Set up Diego (**No, I'm here to help** → **Use my demo calendar (demo only)**), then add him from Priya's **Home** tab (**Add people**) and tap **Join** as Diego. Set up Marcus as a parent, or Jordan by describing availability in words.
 4. **Back out.** Book something for tomorrow, then tap **I can't make it anymore** as the helper (if it's less than a day away, confirm with **Yes, I have to cancel**). Village finds a replacement on its own.
 
-**Demo data:** 2 parents and 4 villagers, all made up, in `data/seed/` (calendars are `.ics` files there). Their events repeat daily, so the demo works any day. For Priya's 1pm request:
+**+ New classmate** adds a brand-new person with no demo calendar. **Reset demo** puts everyone back as in the table, with no help history, and also starts any real Slack users over from setup.
+
+**Demo calendars:** `.ics` files in `data/seed/calendars/`, with events that repeat daily so the demo works on any day. For Priya's 1pm request:
 - **Sam** is busy on his second calendar → skipped by rules.
-- **Diego**'s class ends right at the handoff → his agent decides.
 - **Mei** has a tentative meeting she'd skip → her agent decides.
-- **Hannah** is free → rules say yes.
+- **Hannah** (once she joins) is free → rules say yes.
+- **Diego** (once set up and added) has a class ending right at the handoff → his agent decides.
 
 **Rules:**
 - Commitments up to 80 minutes, plus a 5-minute handoff on each side.
 - People who look free are asked before "maybes", then whoever has helped least this week. If no one answers in 10 minutes, the next 3 are asked.
 - Helpers can back out with 24h+ notice in one tap, with 6–24h after confirming, and not under 6h.
 - Anyone who said no or is already helping isn't asked again that day.
+
+### Demo vs. real use
+
+| | Web demo | Real use (Slack) |
+|---|---|---|
+| People | Made-up classmates; you play all of them | Each classmate on their own Slack account |
+| Calendars | Demo calendar files, connected from the seed or with one tap during setup (real links and written availability work too) | Their own private calendar link from Google or Outlook, or written availability |
+| Starting point | Some people already set up, some new (see the table above) | Everyone sets up when they first join |
+| Picking a village | A list of the demo people | Slack's people picker |
+| Messages | Appear in the browser windows | Slack DMs from the Village bot |
+| Reset | **Reset demo** restores the starting point | No reset; people edit their profile on the Home tab |
+
+Both use the same agents, rules, and real clock. The demo calendars repeat daily so the demo works on any day.
 
 ## Version 2: Slack
 
@@ -127,7 +151,8 @@ frontend/         React + TypeScript + Vite (built copy in frontend/dist)
 data/seed/        demo people and calendars
 tests/            pytest suite
 slack/            Slack app manifest
-scripts/, output/ caching measurement and results (caching_experiment.md)
+scripts/, output/ caching measurement and results (caching_experiment.md); every agent run's
+                  tokens and cost are logged locally to output/audit_log.jsonl and served at /api/usage
 ```
 
 ## Safety
