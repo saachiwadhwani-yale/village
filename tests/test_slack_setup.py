@@ -16,7 +16,37 @@ import db
 import onboarding
 from channels.slack import SlackChannel, _home_blocks
 from conftest import last, messages
-from models import ParsedAvailability
+from models import KidInfo, KidsReading, ParsedAvailability
+
+
+# What the kids agent would read from each setup answer used below (the live tests check the real agent).
+K = KidInfo
+READINGS = {
+    "she's 3": [],
+    "Maya, 3": [K(name="Maya", age="3")],
+    "Loves trains. Snack in the blue bag.": [K(name="Maya", notes="Loves trains. Snack in the blue bag.")],
+    "Maya 3 and leo, 5": [K(name="Maya", age="3"), K(name="Leo", age="5")],
+    "Maya loves trains, Leo is allergic to nuts. Snacks are in the blue bag.": [
+        K(name="Maya", notes="Loves trains. Snacks are in the blue bag."),
+        K(name="Leo", allergies="Allergic to nuts", notes="Snacks are in the blue bag.")],
+    "Maya 3 - no allergies, loves trains, naps at 1; Leo 5 - nut allergy": [
+        K(name="Maya", age="3", allergies="None", notes="Loves trains, naps at 1"),
+        K(name="Leo", age="5", allergies="Nut allergy")],
+    "Ana, 2": [K(name="Ana", age="2")],
+    "none": [K(name="Ana", allergies="None")],
+    "no": [K(name="Maya", allergies="None")],
+    "Arjun, 6 months": [K(name="Arjun", age="6 months")],
+    "Lily 2 - loves the stroller, naps around 1": [K(name="Lily", age="2", notes="Loves the stroller, naps around 1")],
+    "Leo, a toddler": [K(name="Leo")],
+    "he's 2": [K(name="Leo", age="2")],
+}
+
+
+@pytest.fixture(autouse=True)
+def fake_kids_agent(monkeypatch):
+    async def read(user_id, text, question, known):
+        return KidsReading(kids=READINGS[text])
+    monkeypatch.setattr(onboarding, "read_kids", read)
 
 
 def describe(user_id: str, text: str) -> None:
@@ -81,8 +111,8 @@ async def test_several_kids_in_one_message_get_one_notes_question():
     assert "about Maya and Leo" in last(me)["text"]                    # one question for both
     await coordinator.handle_message(me, "Maya loves trains, Leo is allergic to nuts. Snacks are in the blue bag.")
     kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
-    assert kids == {"Maya": ("", "Maya loves trains. Snacks are in the blue bag."),
-                    "Leo": ("Leo is allergic to nuts.", "Snacks are in the blue bag.")}
+    assert kids == {"Maya": ("", "Loves trains. Snacks are in the blue bag."),
+                    "Leo": ("Allergic to nuts", "Snacks are in the blue bag.")}
     assert "Who do you want in your village?" in last(me)["text"] and "Maya or Leo" in last(me)["text"]
 
 
@@ -92,19 +122,21 @@ async def test_notes_given_with_the_names_are_kept_and_not_asked_again():
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Maya 3 - no allergies, loves trains, naps at 1; Leo 5 - nut allergy")
     kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
-    assert kids == {"Maya": ("No allergies.", "Loves trains. Naps at 1."), "Leo": ("Nut allergy.", "")}
+    assert kids == {"Maya": ("None", "Loves trains, naps at 1"), "Leo": ("Nut allergy", "")}
     assert "Who do you want in your village?" in last(me)["text"]      # everything given at once: nothing to ask
     assert not any("?" in m["text"] and "allerg" in m["text"].lower() for m in messages(me))
-    assert "*Name:* Leo\n*Age:* 5\n*Allergies:* Nut allergy.\n*General notes:* None" in messages(me)[-2]["text"]
+    assert "*Name:* Leo\n*Age:* 5\n*Allergies:* Nut allergy\n*General notes:* None" in messages(me)[-2]["text"]
 
 
-def test_parse_kids():
-    assert onboarding.parse_kids("Maya, 3") == [("Maya", "3")]
-    assert onboarding.parse_kids("Maya (3), Leo (5) and Ana 1") == [("Maya", "3"), ("Leo", "5"), ("Ana", "1")]
-    assert onboarding.parse_kids("Mary Ann, 4") == [("Mary Ann", "4")]
-    assert onboarding.parse_kids("Ana, 6 months and Leo 2 years") == [("Ana", "6 months"), ("Leo", "2")]
-    assert onboarding.parse_kids("Ana 1 month") == [("Ana", "1 month")]
-    assert onboarding.parse_kids("she's 3") == []
+async def test_an_unclear_age_is_asked_not_guessed():
+    me = new_classmate("w_rio", "Rio Sato")
+    onboarding.start(me)
+    await tap(me, "Yes, I'm a parent")
+    await coordinator.handle_message(me, "Leo, a toddler")
+    assert "How old is Leo?" in last(me)["text"]
+    await coordinator.handle_message(me, "he's 2")
+    assert db.one("SELECT age FROM kids WHERE parent_id = ?", me)["age"] == "2"
+    assert "Anything important a helper should know about Leo?" in last(me)["text"]
 
 
 async def test_parent_is_asked_for_free_times_on_joining_a_village():
@@ -257,13 +289,14 @@ async def test_home_tab_summary_is_valid_for_every_kind_of_person(slack):
 
 
 async def test_reset_starts_everyone_at_setup_with_demo_answers():
-    """Reset demo: demo people start brand-new, with their seed answers as hints and their calendars one tap away."""
+    """Reset demo with people marked new: Village's intro and first question, with their demo calendars one
+    tap away."""
     db.reset(fresh_setup=True)
     coordinator.welcome_everyone()
     assert db.one("SELECT COUNT(*) AS n FROM kids")["n"] == 0
     assert db.one("SELECT COUNT(*) AS n FROM village")["n"] == 0
     assert db.one("SELECT MAX(help_count_total) AS n FROM users")["n"] == 0   # no made-up history either
-    assert "Are you a parent?" in last("priya")["text"] and "Are you a parent?" in last("mei")["text"]
+    assert "Are you a parent?" in last("priya")["text"] and "Are you a parent?" in last("mei")["text"]   # intro
 
     await tap("mei", "No, I'm here to help")
     assert last("mei")["buttons"][:3] == ["Use my demo calendars (demo only)", "Connect a calendar",
@@ -287,10 +320,20 @@ async def test_reset_with_the_real_demo_data_starts_people_as_described(monkeypa
     assert {r["villager_id"]: r["status"] for r in db.all_("SELECT * FROM village WHERE parent_id = 'priya'")} == \
         {"sam": "accepted", "mei": "accepted", "hannah": "pending"}
     assert {r["id"] for r in db.all_("SELECT id FROM users WHERE onboarding = 'done'")} == {"priya", "sam", "mei", "hannah"}
-    assert "You're set up with Arjun (4) and Sam and Mei in your village" in last("priya")["text"]
-    assert "would like to add you" in last("hannah")["text"]
-    for new in ("marcus", "diego", "jordan"):
-        assert "Are you a parent?" in last(new)["text"]
+    # Set-up people show the setup conversation they'd have had.
+    priya = [m["text"] for m in messages("priya")]
+    assert "Are you a parent?" in priya[0] and "*Name:* Arjun\n*Age:* 4\n*Allergies:* Peanut allergy" in "\n".join(priya)
+    assert "You're all set" in priya[-1]
+    assert db.one("SELECT button_choice FROM messages WHERE user_id = 'priya' AND text LIKE '%Who do you want%'")[
+        "button_choice"] == "Invited Sam, Mei and Hannah"
+    assert any(m["direction"] == "in" for m in db.all_("SELECT direction FROM messages WHERE user_id = 'priya'"))
+    sam = [m["text"] for m in messages("sam")]
+    assert any("Connected your demo calendars" in t for t in sam) and "You're in Priya's village" in sam[-1]
+    assert "would like to add you" in last("hannah")["text"] and not last("hannah")["used"]
+    assert onboarding.step("priya") == "done" and {r["id"] for r in db.all_(
+        "SELECT id FROM users WHERE onboarding = 'done'")} == {"priya", "sam", "mei", "hannah"}
+    for new in ("marcus", "diego", "jordan"):                          # new people: just the intro
+        assert len(messages(new)) == 1 and "Are you a parent?" in last(new)["text"]
         assert not db.one("SELECT 1 FROM calendars WHERE user_id = ?", new)
 
 
@@ -301,5 +344,20 @@ async def test_notes_without_allergies_get_one_allergy_question():
     await coordinator.handle_message(me, "Lily 2 - loves the stroller, naps around 1")
     assert "Last thing: does Lily have any allergies or medical needs" in last(me)["text"]
     await coordinator.handle_message(me, "no")
-    assert "*Allergies:* None\n*General notes:* Loves the stroller, naps around 1." in messages(me)[-2]["text"]
+    assert "*Allergies:* None\n*General notes:* Loves the stroller, naps around 1" in messages(me)[-2]["text"]
     assert "Who do you want in your village?" in last(me)["text"]
+
+
+def test_web_demo_cannot_read_or_act_as_a_slack_user():
+    from fastapi.testclient import TestClient
+    import main
+    db.run("INSERT INTO users (id, name, program, color, is_parent, slack_id, onboarding) "
+           "VALUES ('s_u1', 'Real Person', 'SOM', '#000', 1, 'U1', 'done')")
+    coordinator.add_kid("s_u1", "Zoe", "2", "private note", "private allergy")
+    client = TestClient(main.app)
+    assert client.get("/api/users/s_u1/messages").status_code == 403
+    assert client.post("/api/users/s_u1/messages", json={"text": "hi"}).status_code == 403
+    assert client.post("/api/users/s_u1/kids", json={"name": "X", "age": "1"}).status_code == 403
+    listed = next(u for u in client.get("/api/users").json() if u["id"] == "s_u1")
+    assert listed["on_slack"] and listed["kids"] == [] and "private" not in json.dumps(listed)
+    assert client.get("/api/users/priya/messages").status_code == 200        # demo people still work

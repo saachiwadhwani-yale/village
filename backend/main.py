@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -41,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import calendar_links
@@ -109,6 +110,19 @@ async def _start_slack():
 app = FastAPI(title="Village", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"],
                    allow_headers=["*"])
+
+SLACK_ONLY = re.compile(r"^/api/users/([^/]+)/")
+
+
+@app.middleware("http")
+async def no_acting_as_slack_users(request, call_next):
+    """The web demo plays made-up people. Real people who use Village in Slack can't be read or acted for here."""
+    m = SLACK_ONLY.match(request.url.path)
+    if m and db.one("SELECT 1 FROM users WHERE id = ? AND slack_id IS NOT NULL", m.group(1)):
+        return JSONResponse({"detail": "This person uses Village in Slack, so the web demo can't act for them."},
+                            status_code=403)
+    return await call_next(request)
+
 
 
 def _user_or_404(user_id: str):
@@ -209,7 +223,12 @@ def remove_kid(user_id: str, kid_id: str) -> User:
 
 @app.get("/api/users")
 def users() -> list[User]:
-    return [_user(r) for r in db.all_("SELECT * FROM users ORDER BY is_parent DESC, name")]
+    """Everyone, but for real Slack users only what's needed to show their name in a village (no kids, notes,
+    calendars, or availability)."""
+    return [_user(r) if not r["slack_id"] else
+            User(id=r["id"], name=r["name"], program=r["program"], color=r["color"], is_parent=bool(r["is_parent"]),
+                 onboarding=r["onboarding"], on_slack=True)
+            for r in db.all_("SELECT * FROM users ORDER BY is_parent DESC, name")]
 
 
 @app.get("/api/users/{user_id}/messages")
@@ -230,7 +249,8 @@ def messages(user_id: str, after: int = 0) -> dict:
 def inbox() -> dict[str, int]:
     """Newest message Village sent each person, so the app can show unread dots."""
     return {r["user_id"]: r["last"] for r in db.all_(
-        "SELECT user_id, MAX(id) AS last FROM messages WHERE direction = 'out' GROUP BY user_id")}
+        "SELECT m.user_id, MAX(m.id) AS last FROM messages m JOIN users u ON u.id = m.user_id "
+        "WHERE m.direction = 'out' AND u.slack_id IS NULL GROUP BY m.user_id")}
 
 
 @app.post("/api/users/{user_id}/messages")
@@ -324,14 +344,17 @@ def booking_ics(request_id: int, u: str, t: str) -> Response:
 @app.get("/api/requests")
 def requests() -> list[CareRequest]:
     out = []
-    for r in db.all_("SELECT r.*, p.name AS parent_name, k.name AS kid_name, h.name AS helper_name "
+    for r in db.all_("SELECT r.*, p.name AS parent_name, k.name AS kid_name, h.name AS helper_name, "
+                     "s.name AS support_name "
                      "FROM requests r JOIN users p ON p.id = r.parent_id LEFT JOIN kids k ON k.id = r.kid_id "
-                     "LEFT JOIN users h ON h.id = r.helper_id ORDER BY r.id DESC"):
+                     "LEFT JOIN users h ON h.id = r.helper_id LEFT JOIN users s ON s.id = r.support_id WHERE p.slack_id IS NULL ORDER BY r.id DESC"):
         asks = db.all_("SELECT a.*, u.name FROM asks a JOIN users u ON u.id = a.villager_id "
                        "JOIN village v ON v.villager_id = a.villager_id AND v.parent_id = ? "
                        "WHERE a.request_id = ? ORDER BY v.rank", r["parent_id"], r["id"])
         out.append(CareRequest(
-            id=r["id"], parent_id=r["parent_id"], parent_name=r["parent_name"], kid_name=r["kid_name"],
+            id=r["id"], parent_id=r["parent_id"], parent_name=r["parent_name"],
+            kid_name=coordinator._join([k["name"] for k in coordinator._kids(r)]) or r["kid_name"],
+            support_name=r["support_name"],
             meeting_start=r["meeting_start"], meeting_minutes=r["meeting_minutes"], care_start=r["care_start"],
             care_end=r["care_end"], purpose=r["purpose"], location=r["location"], status=r["status"],
             helper_name=r["helper_name"], created_at=r["created_at"],
@@ -349,6 +372,8 @@ def events(after: int = 0, request_id: int | None = None) -> list[TraceEvent]:
     if request_id is not None:
         sql += " AND request_id = ?"
         args.append(request_id)
+    sql += " AND (request_id IS NULL OR request_id NOT IN (SELECT r.id FROM requests r JOIN users p ON " \
+           "p.id = r.parent_id WHERE p.slack_id IS NOT NULL))"           # real Slack parents' requests stay private
     return [TraceEvent(id=e["id"], request_id=e["request_id"], kind=e["kind"], agent=e["agent"], text=e["text"],
                        data=json.loads(e["data"]) if e["data"] else None, created_at=e["created_at"])
             for e in db.all_(sql + " ORDER BY id", *args)]

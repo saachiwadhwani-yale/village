@@ -49,7 +49,9 @@ export function Home({ user, users, onChanged }: Props) {
       <p className="home-sub">To ask for help, just message Village in the <b>Messages</b> tab.</p>
       {note && <p className="home-note">{note}</p>}
       {!setupDone ? (
-        <Line text={<><b>👋 Finish setting up in the Messages tab.</b> Village is asking you a few quick questions there.</>}
+        <Line text={user.onboarding === null
+          ? <><b>👋 Not set up yet.</b> Say hi to Village in the Messages tab to get started.</>
+          : <><b>👋 Finish setting up in the Messages tab.</b> Village is asking you a few quick questions there.</>}
           action={<button className="sbtn small" onClick={() => run(() => api.restartSetup(user.id), 'Setup started again in Messages.')}>Start over</button>} />
       ) : !hasFreeTimes && (!user.is_parent || user.in_villages_of.length > 0) && (
         <Line text={<><b>⚠️ Connect a calendar or describe when you're usually free,</b> so Village knows when to ask you.</>}

@@ -4,6 +4,7 @@ pausing, leaving, the once-a-day rule, timers, and the token budget."""
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -140,20 +141,39 @@ def test_full_class_gets_handoff_time():
     assert (start.strftime("%H:%M"), end.strftime("%H:%M"), buffer) == ("10:05", "11:35", 5)
 
 
-async def test_helper_can_back_out_a_day_ahead_and_a_replacement_is_asked():
+async def test_a_day_ahead_village_looks_for_cover_first_and_the_helper_can_still_cancel():
     rid = make_request(day="2026-10-15", start="09:50", end="10:55", minutes=45,   # 2 days out
                        verdicts={"sam": "available", "hannah": "available", "mei": "maybe"})
     await coordinator.send_wave(rid)
     await coordinator.accept(rid, "sam")
     assert "I can't make it anymore" in last("sam")["buttons"]
     assert "ideally the day before" in last("sam")["text"]
-    total_before = db.one("SELECT help_count_total AS n FROM users WHERE id = 'sam'")["n"]
+    parent_msgs = len(messages("priya"))
     await coordinator.helper_back_out(rid, "sam")
-    assert request(rid)["status"] == "searching" and request(rid)["helper_id"] is None
-    assert asks(rid)["sam"] == "withdrew"
-    assert "You don't need to do anything" in last("priya")["text"]
+    assert request(rid)["status"] == "booked" and request(rid)["covering"] == "sam"     # still on, looking quietly
+    assert "If no one can, you can still cancel" in messages("sam")[-1]["text"]
+    assert len(messages("priya")) == parent_msgs                                        # parent not bothered
+
+    # No one can cover: Sam is offered a real cancel, which tells Priya.
+    await coordinator.decline(rid, "hannah")
+    await coordinator.decline(rid, "mei")
+    assert request(rid)["covering"] is None and last("sam")["buttons"] == ["Cancel", "I'll be there"]
+    total_before = db.one("SELECT help_count_total AS n FROM users WHERE id = 'sam'")["n"]
+    await coordinator.handle_button("sam", "helper_cancel_anyway", rid, last("sam")["id"])
+    assert request(rid)["helper_id"] is None and asks(rid)["sam"] == "withdrew"
+    assert "Sam can't make it anymore" in last("priya")["text"]
     assert db.one("SELECT help_count_total AS n FROM users WHERE id = 'sam'")["n"] == total_before - 1
-    assert any(s == "asked" for v, s in asks(rid).items() if v != "sam")
+
+
+async def test_a_day_ahead_cover_found_means_the_parent_just_gets_a_note():
+    rid = make_request(day="2026-10-15", start="09:50", end="10:55", minutes=45,
+                       verdicts={"sam": "available", "hannah": "available"})
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "sam")
+    await coordinator.helper_back_out(rid, "sam")
+    await coordinator.accept(rid, "hannah")
+    assert request(rid)["helper_id"] == "hannah"
+    assert "Sam couldn't make it after all, so Hannah is covering instead" in last("priya")["text"]
 
 
 async def test_backing_out_less_than_a_day_ahead_asks_to_confirm_first():
@@ -162,22 +182,47 @@ async def test_backing_out_less_than_a_day_ahead_asks_to_confirm_first():
     await coordinator.send_wave(rid)
     await coordinator.accept(rid, "sam")
     await coordinator.helper_back_out(rid, "sam")
-    assert request(rid)["status"] == "booked"                                       # not yet
+    assert request(rid)["covering"] is None                                         # not yet
     assert "counting on you" in last("sam")["text"]
     assert last("sam")["buttons"] == ["Yes, I have to cancel", "Never mind, I'll be there"]
     await coordinator.handle_button("sam", "helper_cancel_confirm", rid, last("sam")["id"])
-    assert request(rid)["status"] == "searching" and asks(rid)["sam"] == "withdrew"
-    assert asks(rid)["hannah"] == "asked"
+    assert request(rid)["covering"] == "sam" and asks(rid)["hannah"] == "asked"
 
 
-async def test_helper_cannot_back_out_inside_the_cutoff():
-    rid = make_request(verdicts={"hannah": "available"})          # today 12:50, test clock 11:30
+async def test_inside_the_cutoff_village_quietly_finds_cover_first():
+    """Under 6 hours a helper can't cancel. "Something came up" keeps them booked while Village asks others;
+    the parent hears about it only once someone takes over."""
+    rid = make_request(verdicts={"hannah": "available", "aisha": "maybe", "diego": "maybe", "mei": "maybe",
+                                 "sam": "unavailable"})              # today 12:50, test clock 11:30
     await coordinator.send_wave(rid)
     await coordinator.accept(rid, "hannah")
-    assert "I can't make it anymore" not in last("hannah")["buttons"]   # no back-out button offered
-    await coordinator.helper_back_out(rid, "hannah")
-    assert request(rid)["status"] == "booked"
-    assert "can't swap you out automatically" in last("hannah")["text"]
+    assert "Something came up" in last("hannah")["buttons"]
+    assert "I can't make it anymore" not in last("hannah")["buttons"]
+    parent_msgs = len(messages("priya"))
+
+    await coordinator.handle_button("hannah", "helper_cover", rid, None)
+    assert request(rid)["status"] == "booked" and request(rid)["helper_id"] == "hannah"   # still on
+    assert request(rid)["covering"] == "hannah"
+    assert {v for v, st in asks(rid).items() if st == "asked"} == {"aisha", "diego", "mei"}   # everyone free, at once
+    assert "quietly check" in messages("hannah")[-1]["text"]
+    assert len(messages("priya")) == parent_msgs                    # the parent isn't told yet
+
+    await coordinator.accept(rid, "aisha")
+    assert request(rid)["helper_id"] == "aisha" and request(rid)["covering"] is None
+    assert "you're off the hook" in last("hannah")["text"]
+    assert "Hannah couldn't make it after all, so Aisha is covering instead. Nothing you need to do." in \
+        last("priya")["text"]
+    assert "Peanut allergy" in last("aisha")["text"]
+
+
+async def test_inside_the_cutoff_with_no_cover_the_helper_talks_to_the_parent():
+    rid = make_request(verdicts={"hannah": "available"})
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "hannah")
+    await coordinator.helper_back_out(rid, "hannah")               # "I can't make it" under 6h: same as cover
+    assert request(rid)["status"] == "booked" and request(rid)["helper_id"] == "hannah"
+    assert request(rid)["covering"] is None
+    assert "Please message Priya directly" in last("hannah")["text"]
 
 
 # --- pausing, leaving, once a day --------------------------------------------------------
@@ -293,3 +338,62 @@ async def test_parent_can_edit_a_kid_and_a_booked_helper_gets_the_new_notes():
     assert db.one("SELECT allergies FROM kids WHERE id = ?", kid)["allergies"] == "Peanut and sesame allergy."
     assert "updated Arjun's details" in last("hannah")["text"] and "sesame" in last("hannah")["text"]
     assert not coordinator.update_kid("marcus", kid, "X", "1", "")      # only the parent can edit
+
+
+async def test_if_an_availability_agent_fails_the_rules_still_decide(monkeypatch):
+    """Every classmate gets an availability agent (its first tool is the rules). If the model call fails,
+    a case the rules settle still gets the right answer; only unclear ones fall back to "maybe"."""
+    async def broken(*args, **kwargs):
+        raise TimeoutError
+    monkeypatch.setattr(coordinator, "run_agent", broken)
+    rid = make_request()                                              # today 12:50-13:40, no verdicts yet
+    await coordinator.run_matching(rid)
+    rows = {a["villager_id"]: (a["verdict"], a["decided_by"]) for a in db.all_("SELECT * FROM asks WHERE request_id = ?", rid)}
+    assert rows["sam"] == ("unavailable", "rules")                    # firm conflict on his second calendar
+    assert rows["hannah"] == ("available", "rules")
+    assert rows["diego"] == ("maybe", "fallback")                     # tight handoff: needs judgment
+
+
+async def test_backing_out_after_the_start_is_too_late():
+    rid = make_request(verdicts={"hannah": "available"})              # today 12:50-13:40
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "hannah")
+    db.set_setting("demo_now", "2026-10-13T13:00")                    # during the care time
+    await coordinator.handle_button("hannah", "helper_cover", rid, None)
+    assert "too late to back out" in last("hannah")["text"]
+    assert request(rid)["status"] == "booked" and request(rid)["covering"] is None
+
+
+async def test_two_kids_book_a_main_caretaker_then_look_for_a_second_helper():
+    maya = coordinator.add_kid("priya", "Maya", "2", "Naps at 1", "None")
+    rid = make_request(verdicts={"hannah": "available", "aisha": "maybe", "diego": "maybe", "mei": "maybe"})
+    db.run("UPDATE requests SET extra_kid_ids = ? WHERE id = ?", json.dumps([maya]), rid)
+    await coordinator.send_wave(rid)
+    assert "Arjun (4) and Maya (2)" in last("hannah")["text"]
+
+    await coordinator.accept(rid, "hannah")                            # first yes: the main caretaker, booked now
+    r = request(rid)
+    assert r["status"] == "booked" and r["helper_id"] == "hannah" and r["support_search"] == 1
+    assert "looking for a second person" in last("priya")["text"]
+    booking = last("hannah")["text"]
+    assert "Arjun is 4" in booking and "Maya is 2" in booking and "Peanut" in booking
+    still_asked = [v for v, s in asks(rid).items() if s == "asked"]
+    assert still_asked and "second person" in last(still_asked[0])["text"]
+
+    await coordinator.accept(rid, still_asked[0])                       # second yes: support
+    r = request(rid)
+    assert r["support_id"] == still_asked[0] and r["support_search"] == 0 and r["helper_id"] == "hannah"
+    assert "will help Hannah too" in last("priya")["text"]
+    assert "Maya is 2" in last(still_asked[0])["text"]                  # support gets the kids' details too
+    assert all(s != "asked" for s in asks(rid).values())
+
+    coordinator.support_back_out(rid, still_asked[0])                   # support drops: Hannah still has it
+    assert request(rid)["support_id"] is None and request(rid)["helper_id"] == "hannah"
+    assert "still has it covered" in last("priya")["text"]
+
+
+async def test_one_kid_books_one_helper_only():
+    rid = make_request(verdicts={"hannah": "available", "aisha": "maybe"})
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "hannah")
+    assert request(rid)["support_search"] == 0 and asks(rid)["aisha"] == "filled"

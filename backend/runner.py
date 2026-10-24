@@ -19,7 +19,7 @@ from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 
 import db
-from config import AGENT_LIMITS, AUDIT_LOG, MODEL_NAME, MODEL_SETTINGS, REQUEST_TOKEN_BUDGET, cost_usd
+from config import AGENT_LIMITS, AGENT_SETTINGS, AUDIT_LOG, MODEL_NAME, MODEL_SETTINGS, REQUEST_TOKEN_BUDGET, cost_usd
 
 
 class BudgetExceeded(Exception):
@@ -51,9 +51,11 @@ def _tool_calls(messages) -> list[dict]:
     return calls
 
 
-async def run_agent(agent: Agent, name: str, prompt: str, deps: Any = None, *,
+async def run_agent(agent: Agent, name: str, prompt: str, deps: Any = None, *, output_type: Any = None,
                     request_id: int | None = None, subject: str | None = None):
-    """Run one agent and return its structured output. Raises on failure."""
+    """Run one agent and return its structured output. Raises on failure.
+
+    `output_type` picks one of the agent's outputs (the messages and setup agents read two kinds of text)."""
     if request_id is not None and request_tokens_used(request_id) >= REQUEST_TOKEN_BUDGET:
         db.log_event(request_id, "guard", f"Skipped {name}: this request used its token budget.", name)
         raise BudgetExceeded(name)
@@ -62,8 +64,10 @@ async def run_agent(agent: Agent, name: str, prompt: str, deps: Any = None, *,
     result, error = None, None
     try:
         # One cache key per agent, so runs of the same agent share a prompt cache.
-        settings = OpenAIResponsesModelSettings(**MODEL_SETTINGS, openai_prompt_cache_key=f"village-{name}")
-        result = await agent.run(prompt, deps=deps, usage_limits=AGENT_LIMITS, model_settings=settings)
+        settings = OpenAIResponsesModelSettings(**{**MODEL_SETTINGS, **AGENT_SETTINGS.get(name, {})},
+                                                openai_prompt_cache_key=f"village-{name}")
+        result = await agent.run(prompt, deps=deps, usage_limits=AGENT_LIMITS, model_settings=settings,
+                                 **({"output_type": output_type} if output_type else {}))
         return result.output
     except UsageLimitExceeded as exc:
         error = f"usage limit: {exc}"

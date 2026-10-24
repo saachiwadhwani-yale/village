@@ -106,6 +106,7 @@ export interface CareRequest {
   location: string | null
   status: 'draft' | 'searching' | 'booked' | 'no_match' | 'cancelled' | 'expired'
   helper_name: string | null
+  support_name: string | null
   created_at: string
   asks: Ask[]
 }

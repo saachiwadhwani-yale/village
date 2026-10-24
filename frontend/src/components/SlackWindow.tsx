@@ -122,7 +122,7 @@ export function SlackWindow({ label, users, userId, unread, onChangeUser, onSeen
     onChangeUser(u.id)
   }
 
-  const others = users.filter((u) => u.id !== userId)
+  const others = users.filter((u) => u.id !== userId && !u.on_slack)
   const dmUser = view.kind === 'dm' ? users.find((u) => u.id === view.userId) : undefined
 
   return (
@@ -134,7 +134,7 @@ export function SlackWindow({ label, users, userId, unread, onChangeUser, onSeen
           <select value={userId} onChange={(e) => onChangeUser(e.target.value)}>
             {GROUPS.map((g) => (
               <optgroup key={g.key} label={g.title}>
-                {users.filter((u) => groupOf(u) === g.key).map((u) => (
+                {users.filter((u) => groupOf(u) === g.key && !u.on_slack).map((u) => (
                   <option key={u.id} value={u.id}>{unread[u.id] ? '● ' : ''}{u.name}</option>
                 ))}
               </optgroup>

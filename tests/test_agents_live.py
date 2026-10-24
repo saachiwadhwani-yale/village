@@ -11,6 +11,8 @@ import pytest
 import channels
 import coordinator
 import db
+import onboarding
+from models import age_label
 from conftest import ask_and_confirm, asks, last, latest_request_id, messages, request
 
 pytestmark = pytest.mark.live
@@ -119,5 +121,56 @@ async def test_injected_parent_message_books_nothing():
 async def test_token_usage_is_logged_for_every_agent_run():
     await ask_and_confirm(coordinator, "priya", "coffee chat at 1 for 30 min, need someone for Arjun")
     rows = db.all_("SELECT * FROM usage")
-    assert {r["agent"] for r in rows} >= {"intake", "availability"}
+    assert {r["agent"] for r in rows} >= {"messages", "availability"}
     assert all(r["input_tokens"] > 0 and r["output_tokens"] > 0 and r["cost_usd"] > 0 for r in rows)
+
+
+# --- the kids agent (setup) ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Maya is 1 month old", {"Maya": "1 month"}),
+    ("my son Leo, 4", {"Leo": "4"}),
+    ("Maya is 3 and Leo is 5", {"Maya": "3", "Leo": "5"}),
+    ("Leo who is 4", {"Leo": "4"}),
+    ("Ana, a 1-month-old", {"Ana": "1 month"}),
+    ("Leo, a toddler", {"Leo": None}),                                 # unclear: Village asks instead of guessing
+])
+async def test_kids_agent_reads_names_and_ages_as_given(text, expected):
+    reading = await onboarding.read_kids("priya", text, "kids", [])
+    got = {k.name: (age_label(k.age) if k.age else None) for k in reading.kids}
+    assert got == expected
+
+
+async def test_kids_agent_splits_allergies_from_notes():
+    reading = await onboarding.read_kids("priya", "Maya 3 - loves trains; Leo 5 - nut allergy, EpiPen in his bag",
+                                         "kids", [])
+    kids = {k.name: k for k in reading.kids}
+    assert "nut" in kids["Leo"].allergies.lower() and "train" in kids["Maya"].notes.lower()
+    assert not kids["Maya"].allergies                                   # not mentioned: left for Village to ask
+
+
+# --- the dispatch agent -------------------------------------------------------------------------
+
+
+def _request_with_verdicts(start: str, end: str, verdicts: dict[str, str], extra_kids: list[str] | None = None) -> int:
+    import json
+    rid = db.run("INSERT INTO requests (parent_id, kid_id, extra_kid_ids, meeting_start, meeting_minutes, care_start, "
+                 "care_end, purpose, status, created_at) VALUES ('priya', 'arjun', ?, ?, 30, ?, ?, 'coffee chat', "
+                 "'searching', ?)", json.dumps(extra_kids) if extra_kids else None, start, start, end,
+                 db.utc_now_iso())
+    for vid, verdict in verdicts.items():
+        db.run("INSERT INTO asks (request_id, villager_id, verdict, confidence, verdict_reason, decided_by, status) "
+               "VALUES (?,?,?, 'high', 'test', 'rules', 'not_asked')", rid, vid, verdict)
+    return rid
+
+
+async def test_dispatch_asks_more_when_time_is_short_and_fewer_when_it_isnt():
+    everyone = {"sam": "available", "hannah": "available", "aisha": "maybe", "diego": "maybe", "mei": "maybe"}
+    relaxed = _request_with_verdicts("2026-10-15T13:00", "2026-10-15T13:40", everyone)          # 2 days away
+    urgent = _request_with_verdicts("2026-10-13T12:20", "2026-10-13T13:00", everyone,            # 50 min away
+                                    extra_kids=[coordinator.add_kid("priya", "Maya", "2", "", "None")])
+    plan_relaxed = await coordinator.plan_wave(request(relaxed), coordinator._candidates(relaxed), "fresh")
+    plan_urgent = await coordinator.plan_wave(request(urgent), coordinator._candidates(urgent), "fresh")
+    assert plan_relaxed.ask_now <= 3 and plan_relaxed.wait_minutes >= 15
+    assert plan_urgent.ask_now >= 4 and plan_urgent.wait_minutes <= 10

@@ -1,7 +1,10 @@
 """Villager availability agent: one run per villager, all run in parallel.
 
-Each run sees only its own villager's data, through three read-only tools.
-Calendar data arrives already stripped to busy times (see calendars.py).
+The agent is in charge of each villager's check. Its first tool runs Village's fixed
+rules (screening.py): if they settle the case (a firm conflict, a clear calendar), the
+agent returns that verdict and stops. If not, it judges with three read-only tools.
+An output check makes sure it never contradicts a case the rules settled. Each run sees
+only its own villager's data; calendars arrive already stripped to busy times.
 """
 
 from __future__ import annotations
@@ -9,10 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 
 from config import load_prompt, model
 from models import AvailabilityVerdict, BusyBlock, ParsedAvailability
+from screening import screen
 
 
 @dataclass
@@ -27,6 +31,11 @@ class VillagerDeps:
     care_start: datetime
     care_end: datetime
     notes: list[str] = field(default_factory=list)
+    used_rules: bool = False              # set when the agent calls screen_with_rules
+
+    def rules(self) -> AvailabilityVerdict | None:
+        return screen(self.busy, self.calendar_errors, bool(self.calendar_labels), self.parsed,
+                      self.care_start, self.care_end)
 
 
 availability_agent = Agent(
@@ -40,6 +49,18 @@ availability_agent = Agent(
 
 def _t(dt: datetime) -> str:
     return dt.strftime("%H:%M")
+
+
+@availability_agent.tool
+def screen_with_rules(ctx: RunContext[VillagerDeps]) -> dict:
+    """Village's fixed rules on this villager's calendars and written availability. Call this first."""
+    ctx.deps.used_rules = True
+    v = ctx.deps.rules()
+    if v:
+        return {"settled": True, "verdict": v.verdict, "confidence": v.confidence, "reason": v.reason}
+    return {"settled": False, "why": "The rules can't settle this one (a tight handoff, a tentative event, written "
+                                     "availability with caveats or gaps, or a calendar that didn't load). Judge it "
+                                     "with the other tools."}
 
 
 @availability_agent.tool
@@ -78,3 +99,12 @@ def villager_prompt(deps: VillagerDeps, location: str | None) -> str:
     where = f" Handoff at {location}." if location else ""
     return (f"Care window: {day}, {_t(deps.care_start)}-{_t(deps.care_end)}.{where} "
             "Should we ask this villager?")
+
+
+@availability_agent.output_validator
+def _agrees_with_rules(ctx: RunContext[VillagerDeps], out: AvailabilityVerdict) -> AvailabilityVerdict:
+    """A case the rules settle (a firm conflict, a clear calendar) can't be overruled."""
+    settled = ctx.deps.rules()
+    if settled and out.verdict != settled.verdict:
+        raise ModelRetry(f"The rules settle this case: {settled.verdict} ({settled.reason}). Return that verdict.")
+    return out

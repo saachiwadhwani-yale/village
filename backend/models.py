@@ -32,7 +32,8 @@ class IntakeResult(BaseModel):
             "other: not a care request (greeting, thanks, question about the app)."
         )
     )
-    kid_id: str | None = Field(default=None, description="Id of the child from list_my_kids.")
+    kid_id: str | None = Field(default=None, description="Id of the (first) child this request is for.")
+    extra_kid_ids: list[str] = Field(default=[], description="Ids of any other children it's for ('both kids').")
     meeting_date: str | None = Field(
         default=None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Date of the commitment, YYYY-MM-DD."
     )
@@ -218,6 +219,26 @@ class ButtonPress(BaseModel):
     values: list[str] = Field(default_factory=list, description="Picked user ids, for people pickers.")
 
 
+class DispatchPlan(BaseModel):
+    """Dispatch agent output: how many to ask now and how long to wait before asking more."""
+    ask_now: int = Field(ge=1, le=15, description="How many of the remaining classmates to ask now.")
+    wait_minutes: int = Field(ge=5, le=30, description="Minutes to wait for an answer before asking more.")
+    reason: str = Field(max_length=200, description="One short sentence a parent could read.")
+
+
+class KidInfo(BaseModel):
+    """One kid, as a parent described them during setup."""
+    name: str = Field(description="First name only.")
+    age: str | None = Field(default=None, description='"4" (years) or "6 months"; null if not given or unclear.')
+    allergies: str = Field(default="", description='Allergies and medical needs in the parent\'s words, "None", or "".')
+    notes: str = Field(default="", description="Everything else that helps a helper, or \"\".")
+
+
+class KidsReading(BaseModel):
+    """Kids agent output: the kids one setup message is about."""
+    kids: list[KidInfo] = Field(default=[], max_length=8)
+
+
 class AddKid(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     age: str = Field(description='"4", "4 years", or "6 months".')
@@ -278,6 +299,7 @@ class CareRequest(BaseModel):
     location: str | None
     status: str
     helper_name: str | None
+    support_name: str | None = None
     created_at: str
     asks: list[Ask] = []
 

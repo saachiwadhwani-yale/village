@@ -46,6 +46,20 @@ def fresh_db(tmp_path, monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def simple_dispatch(request, monkeypatch):
+    """Offline tests size each round of asks with the simple rule (3 at a time, everyone for cover).
+    Live tests use the real dispatch agent."""
+    if request.node.get_closest_marker("live"):
+        return
+    import coordinator
+    from models import DispatchPlan
+
+    async def plan(req, candidates, kind, checker=None):
+        return DispatchPlan(ask_now=len(candidates) if kind == "cover" else 3, wait_minutes=10, reason="test rule")
+    monkeypatch.setattr(coordinator, "plan_wave", plan)
+
+
 # --- helpers ---------------------------------------------------------------------------
 
 

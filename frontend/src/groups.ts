@@ -23,8 +23,7 @@ function and(names: string[]): string {
 
 /** How someone is set up right now, e.g. "Arjun, 4. Villagers: Sam, Mei, Hannah (invited)." */
 export function describe(u: User, users: User[]): string[] {
-  const slack = u.on_slack ? ' In Slack, real user.' : ''
-  if (groupOf(u) === 'new') return ['Not set up yet.' + slack]
+  if (groupOf(u) === 'new') return ['Not set up yet.']
   const lines: string[] = []
   if (u.is_parent) {
     const kids = u.kids.map((k) => `${k.name}, ${k.age}`).join('; ')
@@ -46,5 +45,5 @@ export function describe(u: User, users: User[]): string[] {
     u.availability_text ? 'Availability described.' : '',
   ].filter(Boolean)
   if (setup.length && (!u.is_parent || ins.length || invitedBy.length)) lines.push(setup.join(' '))
-  return [lines.join(' ') + slack]
+  return [lines.join(' ')]
 }

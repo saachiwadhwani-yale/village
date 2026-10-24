@@ -17,7 +17,7 @@ export function PeopleGuide({ users, left, right, onOpen }: Props) {
         Everyone here is made up. Open anyone in either window. People move between groups as they finish setup.
       </p>
       {GROUPS.map((g) => {
-        const people = users.filter((u) => groupOf(u) === g.key)
+        const people = users.filter((u) => groupOf(u) === g.key && !u.on_slack)   // real Slack users aren't played here
         return (
           <section key={g.key} className="guide-group">
             <h3>{g.title}</h3>

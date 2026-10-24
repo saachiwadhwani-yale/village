@@ -41,9 +41,9 @@ def _event(request_id: int, user_id: str) -> dict | None:
     r = db.one("SELECT r.*, k.name AS kid, p.name AS parent, h.name AS helper FROM requests r "
                "JOIN kids k ON k.id = r.kid_id JOIN users p ON p.id = r.parent_id "
                "LEFT JOIN users h ON h.id = r.helper_id WHERE r.id = ?", request_id)
-    if not r or r["status"] != "booked" or user_id not in (r["parent_id"], r["helper_id"]):
+    if not r or r["status"] != "booked" or user_id not in (r["parent_id"], r["helper_id"], r["support_id"]):
         return None
-    if user_id == r["helper_id"]:
+    if user_id in (r["helper_id"], r["support_id"]):
         title = f"Village: hanging out with {r['kid']} ({r['parent'].split()[0]}'s)"
         details = (f"You're hanging out with {r['kid']} while {r['parent'].split()[0]} is at their "
                    f"{r['purpose'] or 'commitment'}. {r['kid']}'s notes are in your Village messages.")

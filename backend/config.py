@@ -48,14 +48,20 @@ BACKOUT_MIN_NOTICE_HOURS = 6
 # Inside this window (but outside the cutoff above), backing out takes a second "are you sure?" tap.
 # From a parent interview: "ideally the day before but minimum 4-6 hours".
 BACKOUT_SOFT_NOTICE_HOURS = 24
+# Under BACKOUT_MIN_NOTICE_HOURS a helper can't cancel, but Village quietly looks for cover. It stops this
+# long before the start, and the helper talks to the parent directly instead.
+COVER_CUTOFF_MIN = 20
 # Once someone says no, backs out, or takes a shift on a day, don't ask them again that day (any parent).
 ONE_ANSWER_PER_DAY = True
 # Screening is rules first: clear cases are settled by code, only unclear ones go to an agent.
 # Set True only to measure the cost of giving every villager an agent (for the tokenomics comparison).
-AGENT_FOR_EVERY_VILLAGER = False
+
 
 # --- Token / cost limits ----------------------------------------------------------
 MODEL_SETTINGS = ModelSettings(max_tokens=3_000)
+# Per-agent overrides. The availability agent's cases are short timing calls, and in testing it sometimes
+# reasoned for 3,000 tokens about a case its rules tool had already settled; low effort keeps it quick.
+AGENT_SETTINGS = {"availability": {"openai_reasoning_effort": "low", "max_tokens": 1_200}}
 AGENT_LIMITS = UsageLimits(request_limit=6, tool_calls_limit=8, total_tokens_limit=30_000)
 REQUEST_TOKEN_BUDGET = 120_000   # all agent runs for one care request combined
 

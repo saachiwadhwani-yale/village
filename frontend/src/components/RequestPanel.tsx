@@ -8,10 +8,10 @@ interface Props {
 }
 
 const AGENT_NAMES: Record<string, string> = {
-  intake: 'Intake agent',
+  messages: 'Messages agent',
+  setup: 'Setup agent',
   availability: 'Availability agent',
-  reply: 'Reply agent',
-  profile: 'Profile agent',
+  dispatch: 'Dispatch agent',
 }
 
 export function RequestPanel({ requests, events }: Props) {
@@ -38,9 +38,9 @@ export function RequestPanel({ requests, events }: Props) {
         <div className="panel-empty">
           <p>When a parent sends a request, you'll see each step here:</p>
           <ol>
-            <li>The <b>intake agent</b> reads the message and confirms the time.</li>
-            <li>Every villager's connected calendars are <b>screened by rules</b>. Unclear cases go to that villager's own <b>availability agent</b>.</li>
-            <li>The best few are asked. The <b>reply agent</b> reads free-text answers.</li>
+            <li>The <b>messages agent</b> reads the parent's message and Village confirms the time.</li>
+            <li>Each villager gets their own <b>availability agent</b>. Its first tool is Village's <b>rules</b> (⚙); it judges only what the rules can't settle (✦).</li>
+            <li>The <b>dispatch agent</b> decides how many to ask at once and how long to wait, based on how soon it is, how many kids, and who looks free. The <b>messages agent</b> reads any typed answers.</li>
             <li>The first "yes" books it. Everyone else is told.</li>
           </ol>
         </div>
@@ -60,7 +60,7 @@ export function RequestPanel({ requests, events }: Props) {
               {req.helper_name && (
                 <>
                   {' '}
-                  · Helper <b>{req.helper_name}</b>
+                  · Helper <b>{req.helper_name}</b>{req.support_name && <> with <b>{req.support_name}</b></>}
                 </>
               )}
             </div>

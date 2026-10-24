@@ -63,6 +63,11 @@ CREATE TABLE requests (
     location TEXT,
     status TEXT NOT NULL,             -- draft | searching | booked | no_match | cancelled | expired
     helper_id TEXT REFERENCES users(id),
+    covering TEXT,                    -- booked helper who can't make it; Village is quietly looking for cover
+    extra_kid_ids TEXT,               -- JSON list of any other kids this request covers (kid_id is the first)
+    support_id TEXT,                  -- a second helper for 2+ kids, if one said yes
+    support_search INTEGER NOT NULL DEFAULT 0, -- 1 while Village looks for that second helper
+    wave_wait_min INTEGER,            -- how long the dispatch agent said to wait before asking more
     wave INTEGER NOT NULL DEFAULT 0,
     wave_sent_at TEXT,                -- real (wall-clock) UTC time the current wave went out
     created_at TEXT NOT NULL
@@ -246,6 +251,8 @@ _ADDED_COLUMNS = {
     "users": {"help_count_total": "INTEGER NOT NULL DEFAULT 0", "paused_until": "TEXT", "slack_id": "TEXT",
               "onboarding": "TEXT"},
     "kids": {"allergies": "TEXT NOT NULL DEFAULT ''"},
+    "requests": {"covering": "TEXT", "extra_kid_ids": "TEXT", "support_id": "TEXT",
+                 "support_search": "INTEGER NOT NULL DEFAULT 0", "wave_wait_min": "INTEGER"},
     "messages": {"button_choice": "TEXT", "slack_channel": "TEXT", "slack_ts": "TEXT"},
 }
 
