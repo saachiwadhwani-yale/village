@@ -15,7 +15,7 @@ Both run from the same app with the same agents and database.
 
 **Graders: we suggest the web demo.** It runs with one command, and every Slack feature works the same way there. The Slack version works too if you'd like to try it: create a free Slack workspace and add your own two Slack tokens (see [Version 2: Slack](#version-2-slack)).
 
-Demo video (Slack version): *link to be added*
+**Demo video (Slack version):** https://drive.google.com/file/d/1n0DXS_W_FDBVc_C9_sLhEK-Xdpzbx4x5/view?usp=sharing
 
 ## How it works
 
