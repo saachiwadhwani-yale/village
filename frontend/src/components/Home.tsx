@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { api } from '../api'
 import { clock, day } from '../format'
 import type { FormName, Kid, PauseMode, User } from '../types'
-import { AddPeopleForm, FormFor, KidForm } from './Forms'
+import { AddPeopleForm, EmergencyForm, FormFor, KidForm } from './Forms'
 
 interface Props {
   user: User
@@ -16,6 +16,7 @@ interface Props {
 export function Home({ user, users, onChanged }: Props) {
   const [form, setForm] = useState<FormName | 'people' | null>(null)
   const [editKid, setEditKid] = useState<Kid | null>(null)
+  const [editEmergency, setEditEmergency] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const firstName = (id: string) => (users.find((u) => u.id === id)?.name ?? id).split(' ')[0]
   const hasFreeTimes = user.calendars.length > 0 || !!user.availability_text
@@ -65,6 +66,11 @@ export function Home({ user, users, onChanged }: Props) {
               <Line key={k.id} text={<>{k.name}, {k.age}{(k.notes || k.allergies) && <span className="muted">  ·  🔒 allergies and notes saved</span>}</>}
                 menu={[[`Edit ${k.name}`, () => setEditKid(k)], [`Remove ${k.name}`, () => confirm(`Remove ${k.name}? Their notes will be deleted.`) && run(() => api.removeKid(user.id, k.id))]]} />
             ))}
+          </Section>
+
+          <Section title="🚨 Emergency contact" action={<button className="sbtn small" onClick={() => setEditEmergency(true)}>{user.emergency_contact ? 'Edit' : 'Add'}</button>}
+            hint="Only the classmate who says yes gets this.">
+            <p className={user.emergency_contact ? '' : 'muted'}>{user.emergency_contact || 'Not set yet'}</p>
           </Section>
 
           <Section title="Your village" action={<button className="sbtn small" onClick={() => setForm('people')}>Add people</button>}
@@ -126,6 +132,9 @@ export function Home({ user, users, onChanged }: Props) {
         </div>
       )}
 
+      {editEmergency && (
+        <EmergencyForm user={user} onClose={() => setEditEmergency(false)} onDone={() => { setEditEmergency(false); onChanged() }} />
+      )}
       {editKid && (
         <KidForm user={user} kid={editKid} onClose={() => setEditKid(null)} onDone={() => { setEditKid(null); onChanged() }} />
       )}

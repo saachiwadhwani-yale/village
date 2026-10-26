@@ -15,7 +15,7 @@ Both run from the same app with the same agents and database.
 
 **Graders: we suggest the web demo.** It runs with one command, and every Slack feature works the same way there. The Slack version works too if you'd like to try it: create a free Slack workspace and add your own two Slack tokens (see [Version 2: Slack](#version-2-slack)).
 
-**Demo video (Slack version):** https://drive.google.com/file/d/1n0DXS_W_FDBVc_C9_sLhEK-Xdpzbx4x5/view?usp=sharing
+**Demo video (mainly the Slack integration, not every use case):** https://drive.google.com/file/d/1n0DXS_W_FDBVc_C9_sLhEK-Xdpzbx4x5/view?usp=sharing
 
 ## How it works
 
@@ -68,10 +68,10 @@ All agents use **gpt-6-luna** through Portkey. Messaging, booking, and sharing t
 
 Everything happens in a direct message with Village, plus its **Home** tab for editing your profile.
 
-- **Set up:** parents describe their kids in their own words (allergies and notes too) and pick who's in their village. Classmates connect a calendar or say when they're free.
+- **Set up:** parents describe their kids in their own words (allergies and notes too), say how a helper should reach them in an emergency, and pick who's in their village. Classmates connect a calendar or say when they're free.
 - **Ask (parents):** say what you need in plain words, for one kid or several. Village confirms the time, then asks classmates who look free. With two or more kids, the first yes is booked as the main caretaker, and Village keeps looking for a second person to support.
 - **Help (classmates):** tap **Yes, I can** or **Can't this time**, or reply in your own words. The first yes is booked and gets the kid's allergies and notes.
-- **Back out:** tap **I can't make it anymore** (**Something came up** with under 6 hours to go). Village quietly looks for someone else to cover first (see the rules below).
+- **Back out:** tap **I can't make it anymore** (**Something came up** with under 6 hours to go). Village looks for someone else to cover first and keeps the parent posted (see the rules below).
 
 ## Version 1: web demo
 
@@ -116,7 +116,7 @@ The set-up people's chats show the setup conversation they had. New people's cha
 **Rules:**
 - Commitments up to 80 minutes, plus a 5-minute handoff on each side.
 - People who look free are asked before "maybes", then whoever has helped least this week. The dispatch agent decides how many to ask at once and how long to wait before asking more: more people and shorter waits when it's last-minute, for more than one kid, or when finding cover.
-- When a helper can't make it, they stay booked while Village quietly asks the rest of the village; if someone takes over, the parent just gets a note. With 6–24h to go they confirm first. If no one can cover: with 6h+ notice they can cancel and the parent is told; under 6h they can't cancel and are asked to message the parent directly. Once the care time has started, it's too late to back out.
+- When a helper can't make it, they stay booked while Village asks the rest of the village, and the parent is told right away; if someone takes over, the parent gets a note. With 6–24h to go they confirm first. While Village looks, a helper who truly can't come can tap **I really can't make it**: they're taken off, asked to text the parent, and the parent is told. If no one can cover: with 6h+ notice they can cancel and the parent is told; under 6h they can't cancel and are asked to message the parent directly. Once the care time has started, it's too late to back out.
 - Anyone who said no or is already helping isn't asked again that day.
 
 ### Demo vs. real use

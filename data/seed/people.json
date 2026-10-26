@@ -16,7 +16,8 @@
           "file": "priya_google.ics"
         }
       ],
-      "demo": "ready"
+      "demo": "ready",
+      "emergency_contact": "Call or text me at (203) 555-0142. If you can't reach me, call my partner Dev at (203) 555-0187. Arjun's EpiPen is in his backpack; use it, then call 911."
     },
     {
       "id": "marcus",
@@ -33,7 +34,8 @@
           "file": "marcus_google.ics"
         }
       ],
-      "demo": "new"
+      "demo": "new",
+      "emergency_contact": "Call me at (203) 555-0123."
     },
     {
       "id": "sam",

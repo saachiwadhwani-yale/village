@@ -36,6 +36,8 @@ export const api = {
     call<User>(`/users/${userId}/kids`, json('POST', { name, age, notes, allergies })),
   updateKid: (userId: string, kidId: string, name: string, age: string, notes: string, allergies: string) =>
     call<User>(`/users/${userId}/kids/${kidId}`, json('PUT', { name, age, notes, allergies })),
+  setEmergency: (userId: string, text: string) =>
+    call<User>(`/users/${userId}/emergency`, json('PUT', { text })),
   removeKid: (userId: string, kidId: string) => call<User>(`/users/${userId}/kids/${kidId}`, { method: 'DELETE' }),
   setVillage: (userId: string, villagerIds: string[]) =>
     call<User>(`/users/${userId}/village`, json('PUT', { villager_ids: villagerIds })),

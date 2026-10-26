@@ -69,6 +69,12 @@ async def tap(user_id: str, label: str, values: list[str] | None = None):
     return msg
 
 
+async def answer_emergency(user_id: str) -> None:
+    """Parents are asked how a helper should reach them in an emergency, right after the kids summary."""
+    assert "In an emergency, how should a helper reach you?" in last(user_id)["text"]
+    await coordinator.handle_message(user_id, "Call me at (203) 555-0100.")
+
+
 # --- the shared conversation ---------------------------------------------------------------
 
 
@@ -87,6 +93,9 @@ async def test_parent_setup_conversation():
     summary = messages(me)[-2]["text"]                               # one question only, then the summary
     assert "*Name:* Maya\n*Age:* 3\n*Allergies:* None mentioned\n*General notes:* Loves trains. Snack in the blue bag." \
         in summary
+    await answer_emergency(me)
+    assert db.one("SELECT emergency_contact FROM users WHERE id = ?", me)["emergency_contact"] == \
+        "Call me at (203) 555-0100."
 
     picker = await tap(me, "Pick classmates…", values=["hannah", "sam", me])   # picking yourself is ignored
     assert {r["villager_id"] for r in db.all_("SELECT villager_id FROM village WHERE parent_id = ?", me)} == \
@@ -113,6 +122,7 @@ async def test_several_kids_in_one_message_get_one_notes_question():
     kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
     assert kids == {"Maya": ("", "Loves trains. Snacks are in the blue bag."),
                     "Leo": ("Allergic to nuts", "Snacks are in the blue bag.")}
+    await answer_emergency(me)
     assert "Who do you want in your village?" in last(me)["text"] and "Maya or Leo" in last(me)["text"]
 
 
@@ -123,9 +133,10 @@ async def test_notes_given_with_the_names_are_kept_and_not_asked_again():
     await coordinator.handle_message(me, "Maya 3 - no allergies, loves trains, naps at 1; Leo 5 - nut allergy")
     kids = {k["name"]: (k["allergies"], k["notes"]) for k in db.all_("SELECT * FROM kids WHERE parent_id = ?", me)}
     assert kids == {"Maya": ("None", "Loves trains, naps at 1"), "Leo": ("Nut allergy", "")}
-    assert "Who do you want in your village?" in last(me)["text"]      # everything given at once: nothing to ask
-    assert not any("?" in m["text"] and "allerg" in m["text"].lower() for m in messages(me))
     assert "*Name:* Leo\n*Age:* 5\n*Allergies:* Nut allergy\n*General notes:* None" in messages(me)[-2]["text"]
+    await answer_emergency(me)                                          # everything given at once: no kid questions
+    assert "Who do you want in your village?" in last(me)["text"]
+    assert not any("?" in m["text"] and "allerg" in m["text"].lower() for m in messages(me))
 
 
 async def test_an_unclear_age_is_asked_not_guessed():
@@ -145,6 +156,7 @@ async def test_parent_is_asked_for_free_times_on_joining_a_village():
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Ana, 2")
     await coordinator.handle_message(me, "none")
+    await answer_emergency(me)
     await tap(me, "Skip for now")
     assert onboarding.step(me) == "done" and not onboarding.has_free_times(me)
     home = _home_blocks(me, None)
@@ -251,6 +263,7 @@ async def test_slack_draws_setup_with_a_people_picker_and_form_buttons(slack):
     await tap(me, "Yes, I'm a parent")
     await coordinator.handle_message(me, "Maya, 3")
     await coordinator.handle_message(me, "no")
+    await answer_emergency(me)
     await drain(slack)
     village_q = slack.client.posts[-1]["blocks"]
     row = next(b for b in village_q if b["type"] == "actions")["elements"]
@@ -345,6 +358,7 @@ async def test_notes_without_allergies_get_one_allergy_question():
     assert "Last thing: does Lily have any allergies or medical needs" in last(me)["text"]
     await coordinator.handle_message(me, "no")
     assert "*Allergies:* None\n*General notes:* Loves the stroller, naps around 1" in messages(me)[-2]["text"]
+    await answer_emergency(me)
     assert "Who do you want in your village?" in last(me)["text"]
 
 
@@ -361,3 +375,8 @@ def test_web_demo_cannot_read_or_act_as_a_slack_user():
     listed = next(u for u in client.get("/api/users").json() if u["id"] == "s_u1")
     assert listed["on_slack"] and listed["kids"] == [] and "private" not in json.dumps(listed)
     assert client.get("/api/users/priya/messages").status_code == 200        # demo people still work
+
+
+async def test_asking_how_to_change_settings_points_to_the_home_tab():
+    await coordinator.handle_message("hannah", "how do I change my availability?")
+    assert "open my Home tab" in last("hannah")["text"] and "availability" in last("hannah")["text"]

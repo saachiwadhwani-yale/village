@@ -97,6 +97,23 @@ export function KidForm({ user, onDone, onClose, kid }: FormProps & { kid?: Kid 
   )
 }
 
+/** A parent's emergency instructions for whoever helps. */
+export function EmergencyForm({ user, onDone, onClose }: FormProps) {
+  const [text, setText] = useState(user.emergency_contact)
+  const { busy, error, run } = useSubmit(onDone)
+  return (
+    <Modal title="Emergency contact" submit="Save" busy={busy} error={error} onClose={onClose}
+      onSubmit={() => run(() => api.setEmergency(user.id, text))}>
+      <label>
+        In an emergency, how should a helper reach you?
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={300} required
+          placeholder="e.g. Call or text me at (203) 555-0142. Backup: my partner Dev." />
+        <small>A phone number, and anything else they should know. Only the classmate who says yes gets this.</small>
+      </label>
+    </Modal>
+  )
+}
+
 export function CalendarForm({ user, onDone, onClose }: FormProps) {
   const [label, setLabel] = useState('')
   const [url, setUrl] = useState('')

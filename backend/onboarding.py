@@ -26,6 +26,8 @@ from runner import run_agent
 
 
 
+SETTINGS_HELP = ("To change your calendars, written availability, kids, emergency contact, or village later, or to "
+                 "pause for a while, open my Home tab: click Village in the sidebar, then Home at the top.")
 DONE = ("done", "calendar_joined")   # setup finished; calendar_joined is a parent asked for free times later
 
 
@@ -135,6 +137,9 @@ def replay_setup(user_id: str) -> None:
         channels.store_incoming(user_id, "; ".join(
             f"{k['name']}, {k['age']} - {k['allergies']} {k['notes']}".strip() for k in kids))
         _summary(user_id)
+        channels.send(user_id, EMERGENCY_QUESTION)
+        channels.store_incoming(user_id, db.one("SELECT emergency_contact FROM users WHERE id = ?",
+                                                user_id)["emergency_contact"] or "-")
         _ask_village(user_id)
         invited = [r["name"].split()[0] for r in db.all_(
             "SELECT u.name FROM village v JOIN users u ON u.id = v.villager_id WHERE v.parent_id = ? "
@@ -223,7 +228,7 @@ def _ask_about_kids(user_id: str) -> None:
     needing = [k for k in kids if not k["allergies"]]
     if not needing:
         _summary(user_id)
-        _ask_village(user_id)
+        _ask_emergency(user_id)
         return
     names = _join_and([k["name"] for k in needing])
     many = len(needing) > 1
@@ -244,6 +249,16 @@ def _waiting_kids(user_id: str) -> list[str]:
     current = step(user_id) or ""
     _, sep, ids = current.partition(":")
     return [k for k in ids.split(",") if k] if sep and current.startswith(("kid_age", "kid_notes", "kid_medical")) else []
+
+
+EMERGENCY_QUESTION = ("*In an emergency, how should a helper reach you?* Share a phone number, and anything else "
+                      "they should know (another person to call, a doctor, what to do first). 🔒 Only the classmate "
+                      "who says yes gets this.")
+
+
+def _ask_emergency(user_id: str) -> None:
+    _set(user_id, "emergency")
+    channels.send(user_id, EMERGENCY_QUESTION)
 
 
 def _ask_village(user_id: str) -> None:
@@ -305,7 +320,7 @@ def _finish(user_id: str) -> None:
     else:
         text = ("✅ *You're all set!* When a parent adds you to their village, I'll ask you here, and only when you "
                 "look free. You can always say no.")
-    channels.send(user_id, f"{text}\n\nTo change anything later, open my Home tab.")
+    channels.send(user_id, f"{text}\n\n{SETTINGS_HELP}")
 
 
 # --- answers ------------------------------------------------------------------------------
@@ -330,6 +345,11 @@ async def handle_text(user_id: str, text: str) -> bool:
                                 k.notes.strip(), k.allergies.strip())
         _ask_about_kids(user_id)
         return True
+    if current == "emergency":
+        db.run("UPDATE users SET emergency_contact = ? WHERE id = ?", text.strip()[:300], user_id)
+        channels.send(user_id, "Got it, saved. 🔒 You can change it anytime on my Home tab.")
+        _ask_village(user_id)
+        return True
     if current.startswith(("kid_age", "kid_notes", "kid_medical")):
         question = {"kid_age": "kids", "kid_notes": "notes", "kid_medical": "allergies"}[current.partition(":")[0]]
         kids = [db.one("SELECT * FROM kids WHERE id = ?", k) for k in _waiting_kids(user_id)]
@@ -344,7 +364,7 @@ async def handle_text(user_id: str, text: str) -> bool:
             _ask_about_kids(user_id)
             return True
         _summary(user_id)                          # one question about notes or allergies, then move on
-        _ask_village(user_id)
+        _ask_emergency(user_id)
         return True
     return False
 
@@ -359,10 +379,10 @@ def handle_action(user_id: str, verb: str, arg: str, values: list[str], message_
         else:
             _ask_calendar(user_id, as_parent=False)
     elif verb == "setup_kids_done":
-        _ask_village(user_id)
+        _ask_emergency(user_id)
     elif verb in ("setup_skip_notes", "setup_no_medical"):   # buttons from before setup asked one question
         _summary(user_id)
-        _ask_village(user_id)
+        _ask_emergency(user_id)
     elif verb == "setup_village":
         current = [r["villager_id"] for r in
                    db.all_("SELECT villager_id FROM village WHERE parent_id = ? ORDER BY rank", user_id)]

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import date, datetime, timedelta
 
 import calendar_links
@@ -107,6 +108,13 @@ def _care_window(meeting: datetime, minutes: int, now: datetime) -> tuple[dateti
 # --- Incoming messages ---------------------------------------------------------------
 
 
+# Someone asking where to change their profile, e.g. "how do I update my availability?" or "where are my settings".
+SETTINGS_QUESTION = re.compile(
+    r"\b(how|where|can i|how do i|how can i)\b.{0,40}\b(change|update|edit|add|remove|fix|set)\b.{0,30}"
+    r"\b(availability|calendars?|kids?|allerg\w*|notes|emergency|village|villagers|profile|settings?|pause)\b"
+    r"|\bwhere\b.{0,20}\b(settings?|profile|availability|calendar)\b", re.I)
+
+
 async def handle_message(user_id: str, text: str) -> None:
     """Anyone typed something to Village."""
     channels.typing.add(user_id)
@@ -115,6 +123,9 @@ async def handle_message(user_id: str, text: str) -> None:
             onboarding.start(user_id)
             return
         if await onboarding.handle_text(user_id, text):
+            return
+        if SETTINGS_QUESTION.search(text):               # "how do I change my availability?"
+            channels.send(user_id, onboarding.SETTINGS_HELP)
             return
         ask = _open_ask_for(user_id)
         if ask and await _villager_reply(ask, user_id, text):
@@ -130,7 +141,7 @@ async def handle_message(user_id: str, text: str) -> None:
                                    "I'll message you next time someone needs a hand.")
         else:
             channels.send(user_id, "Hi! I'll message you here when a classmate in your village needs a hand. "
-                                   "You can update your calendars and availability on your Village profile (my Home tab in Slack).")
+                                   + onboarding.SETTINGS_HELP)
     except Exception as exc:
         db.log_event(None, "error", f"Failed handling a message from {user_id}: {type(exc).__name__}: {exc}")
         channels.send(user_id, "Sorry, something went wrong on my end. Please try again in a moment.")
@@ -229,8 +240,8 @@ async def _parent_message(parent_id: str, text: str) -> None:
                             " care_start, care_end, purpose, location, status, created_at)"
                             " VALUES (?,?,?,?,?,?,?,?,?, 'draft', ?)",
                             parent_id, *fields, db.utc_now_iso())
-        # The intake run happened before the request existed; count it toward this request.
-        db.run("UPDATE usage SET request_id = ? WHERE id = (SELECT MAX(id) FROM usage WHERE agent = 'intake' "
+        # The messages-agent run happened before the request existed; count it toward this request.
+        db.run("UPDATE usage SET request_id = ? WHERE id = (SELECT MAX(id) FROM usage WHERE agent = 'messages' "
                "AND subject = ? AND request_id IS NULL)", request_id, parent_id)
     db.log_event(request_id, "agent", f"Read the request: {out.purpose or 'commitment'} "
                  f"{day_label(meeting)} {hm(meeting)} for {minutes} min.", "messages", out.model_dump())
@@ -321,6 +332,8 @@ async def handle_button(user_id: str, action: str, request_id: int | None, messa
             await start_cover(request_id, user_id)
         elif verb == "helper_cancel_anyway":
             await cancel_anyway(request_id, user_id)
+        elif verb == "helper_really_cant":
+            await really_cant(request_id, user_id)
         elif verb == "support_cancel":
             support_back_out(request_id, user_id)
         elif verb == "helper_keep" and req["helper_id"] == user_id:
@@ -717,8 +730,8 @@ async def accept(request_id: int, villager_id: str) -> None:
     where = f" at {req['location']}" if req["location"] else ""
     if covered:
         _release_covered_helper(req, covered, villager_id)
-    lead = (f"Quick update: {first(covered)} couldn't make it after all, so {first(villager_id)} is covering "
-            "instead. Nothing you need to do." if covered else f"{first(villager_id)} said yes!")
+    lead = (f"Good news: {first(villager_id)} is covering instead of {first(covered)}. Nothing you need to do."
+            if covered else f"{first(villager_id)} said yes!")
     also = " Since it's more than one kid, I'm also looking for a second person to help. You're covered either way." \
         if wants_support else ""
     channels.send(parent_id, f"{lead} They'll meet you{where} at {hm(care_start)} "
@@ -729,12 +742,12 @@ async def accept(request_id: int, villager_id: str) -> None:
     can_back_out = _can_back_out(req)
     deadline = _dt(req["care_start"]) - timedelta(hours=BACKOUT_MIN_NOTICE_HOURS)
     out_note = (f"If you can't make it after all, please tell me as early as you can, ideally the day before. "
-                f"I'll quietly check whether someone else can cover before {first(parent_id)} hears about it, and "
-                f"if no one can, you can still cancel until {day_label(deadline)} at {hm(deadline)}."
+                f"I'll check whether someone else in the village can cover, and if no one can, you can still "
+                f"cancel until {day_label(deadline)} at {hm(deadline)}."
                 if can_back_out else
                 f"It's less than {BACKOUT_MIN_NOTICE_HOURS} hours away and {first(parent_id)} is counting on you, "
                 f"so please only back out for a real emergency. If one comes up, tap Something came up and I'll "
-                f"quietly check whether someone else can cover before {first(parent_id)} hears about it.")
+                f"check whether someone else can cover.")
     channels.send(villager_id, f"Thank you! You're on for {when}.\n• Meet {first(parent_id)}{where} at "
                                f"{hm(care_start)}{_kid_details(kids, parent_id)}\n{out_note}",
                   _calendar_buttons(request_id, villager_id)
@@ -748,7 +761,8 @@ async def accept(request_id: int, villager_id: str) -> None:
 
 
 def _kid_details(kids, parent_id: str) -> str:
-    """Each kid's age, allergies, and notes: only ever sent to a helper who said yes."""
+    """Each kid's age, allergies, and notes, and the parent's emergency instructions: only ever sent to a helper
+    who said yes."""
     out = ""
     for k in kids:
         out += f"\n• {k['name']} is {k['age']}"
@@ -756,6 +770,9 @@ def _kid_details(kids, parent_id: str) -> str:
             out += f"\n   Allergies & medical: {k['allergies']}"
         if k["notes"]:
             out += f"\n   Notes from {first(parent_id)}: {k['notes']}"
+    emergency = db.one("SELECT emergency_contact FROM users WHERE id = ?", parent_id)["emergency_contact"]
+    if emergency:
+        out += f"\n• 🚨 In an emergency: {emergency}"
     return out
 
 
@@ -852,8 +869,8 @@ def _short_notice(req) -> bool:
 def _short_notice_check(req, helper_id: str) -> None:
     parent = first(req["parent_id"])
     channels.send(helper_id, f"It's less than a day until {_when(req)}, and {parent} is counting on you. Please "
-                             "only back out if you really have to. If you do, I'll first quietly check whether someone "
-                             f"else can cover, before {parent} hears about it.",
+                             "only back out if you really have to. If you do, I'll first check whether someone else in the "
+                             "village can cover.",
                   [Button(label="Yes, I have to cancel", action="helper_cancel_confirm", request_id=req["id"],
                           style="danger"),
                    Button(label="Never mind, I'll be there", action="helper_keep", request_id=req["id"],
@@ -862,7 +879,7 @@ def _short_notice_check(req, helper_id: str) -> None:
 
 
 def _too_late_to_back_out(req, helper_id: str) -> None:
-    """Under 6 hours a helper can't simply cancel, but Village can quietly look for cover first."""
+    """Under 6 hours a helper can't simply cancel, but Village can look for cover first."""
     parent = first(req["parent_id"])
     if _dt(req["care_start"]) <= db.now():             # it's already started
         channels.send(helper_id, f"Sorry, it's too late to back out now. Please message {parent} directly.",
@@ -870,15 +887,15 @@ def _too_late_to_back_out(req, helper_id: str) -> None:
         return
     channels.send(helper_id, f"It's less than {BACKOUT_MIN_NOTICE_HOURS} hours until {hm(_dt(req['care_start']))} "
                              f"and {parent} is counting on you, so I won't cancel. But if something came up, I can "
-                             f"quietly check whether anyone else in {parent}'s village is free to cover.",
+                             f"check whether anyone else in {parent}'s village is free to cover, and keep {parent} posted.",
                   [Button(label="Something came up", action="helper_cover", request_id=req["id"], style="primary"),
                    Button(label="No, I'm still on", action="helper_keep", request_id=req["id"])],
                   req["id"])
 
 
 async def start_cover(request_id: int, helper_id: str) -> None:
-    """The helper can't make it: they stay booked while Village quietly asks the rest of the village, and the
-    parent hears about it only if someone takes over. If no one can, a helper with at least 6 hours' notice can
+    """The helper can't make it: they stay booked while Village asks the rest of the village, and the
+    parent is told right away, then told how it turned out. If no one can, a helper with at least 6 hours' notice can
     still cancel (and the parent is told); with less, they talk to the parent directly."""
     req = _request(request_id)
     if req["status"] != "booked" or req["helper_id"] != helper_id or _dt(req["care_end"]) <= db.now():
@@ -895,18 +912,24 @@ async def start_cover(request_id: int, helper_id: str) -> None:
     # People told "no longer needed" never said no, so they can be asked again.
     db.run("UPDATE asks SET status = 'not_asked' WHERE request_id = ? AND status = 'filled'", request_id)
     late = not _can_back_out(req)
-    db.log_event(request_id, "step", f"{first(helper_id)} can't make it; quietly looking for cover before telling "
-                 "the parent.")
+    db.log_event(request_id, "step", f"{first(helper_id)} can't make it; looking for cover and letting the "
+                 "parent know.")
     parent = first(req["parent_id"])
     if late:
         text = (f"Thanks for telling me. With less than {BACKOUT_MIN_NOTICE_HOURS} hours to go, {parent} is "
-                f"counting on you, so this is a last resort. I'll quietly check whether anyone else in {parent}'s "
-                f"village is free, without bothering {parent} yet.")
+                f"counting on you, so this is a last resort. I'll check whether anyone else in {parent}'s village "
+                f"is free, and I've let {parent} know you might not make it.")
     else:
-        text = (f"Thanks for letting me know. I'll quietly check whether anyone else in {parent}'s village can "
-                f"take it, without bothering {parent} yet. If no one can, you can still cancel.")
-    channels.send(helper_id, f"{text} You're still on until someone says yes, and I'll let you know either way.",
-                  request_id=request_id)
+        text = (f"Thanks for letting me know. I'll check whether anyone else in {parent}'s village can take it, "
+                f"and I've let {parent} know you might not make it. If no one can, you can still cancel.")
+    channels.send(helper_id, f"{text} You're still on until someone says yes, and I'll let you know either way. "
+                             "If you truly can't come no matter what, tap below.",
+                  [Button(label="I really can't make it", action="helper_really_cant", request_id=request_id,
+                          style="danger")],
+                  request_id)
+    channels.send(req["parent_id"], f"Heads up: {first(helper_id)} may not be able to make it {_when(req)}. "
+                                    f"{first(helper_id)} is still scheduled to come, and I'm asking others in your "
+                                    "village just in case. I'll let you know what happens.", request_id=request_id)
     await send_wave(request_id)                    # the dispatch agent picks how many, given the time left
 
 
@@ -935,6 +958,9 @@ def _cover_failed(req) -> None:
     if _can_back_out(req):                         # 6+ hours' notice: they may still cancel
         db.log_event(req["id"], "step", f"No one else could cover for {first(req['helper_id'])}; they can still "
                      "cancel.")
+        channels.send(req["parent_id"], f"No one else in your village is free {_when(req)}, so "
+                                        f"{first(req['helper_id'])} is still scheduled. They may still need to "
+                                        "cancel; I'll let you know right away if they do.", request_id=req["id"])
         channels.send(req["helper_id"], f"I couldn't find anyone else who's free for {_when(req)}. If you still "
                                         f"can't make it, you can cancel and I'll let {parent} know.",
                       [Button(label="Cancel", action="helper_cancel_anyway", request_id=req["id"], style="danger"),
@@ -946,6 +972,9 @@ def _cover_failed(req) -> None:
     channels.send(req["helper_id"], f"I couldn't find anyone else who's free for {_when(req)}. Please message "
                                     f"{parent} directly to figure it out. Until you two sort it out, you're still "
                                     "down for it.", request_id=req["id"])
+    channels.send(req["parent_id"], f"No one else in your village is free {_when(req)}, so "
+                                    f"{first(req['helper_id'])} is still scheduled and will message you directly to "
+                                    "sort it out.", request_id=req["id"])
 
 
 def _when(req) -> str:
@@ -1010,6 +1039,38 @@ async def helper_back_out(request_id: int, helper_id: str, confirmed: bool = Fal
         _short_notice_check(req, helper_id)
         return
     await start_cover(request_id, helper_id)       # look for cover first; they can cancel if no one's found
+
+
+async def really_cant(request_id: int, helper_id: str) -> None:
+    """While Village looks for cover, the helper says they truly can't come: take them off, ask them to text the
+    parent right away, tell the parent, and keep looking for someone else."""
+    req = _request(request_id)
+    if req["status"] != "booked" or req["helper_id"] != helper_id or req["covering"] != helper_id:
+        channels.send(helper_id, "Thanks! This one's already been taken care of.", request_id=request_id)
+        return
+    if _dt(req["care_start"]) <= db.now():
+        channels.send(helper_id, f"Sorry, it's too late to back out now. Please message {first(req['parent_id'])} "
+                                 "directly.", request_id=request_id)
+        return
+    db.run("UPDATE requests SET status = 'searching', helper_id = NULL, covering = NULL WHERE id = ? "
+           "AND helper_id = ?", request_id, helper_id)
+    db.run("UPDATE asks SET status = 'withdrew', answered_at = ? WHERE request_id = ? AND villager_id = ?",
+           _real_now(), request_id, helper_id)
+    db.run("UPDATE users SET help_count_week = MAX(help_count_week - 1, 0), "
+           "help_count_total = MAX(help_count_total - 1, 0) WHERE id = ?", helper_id)
+    channels.retire_buttons(request_id, helper_id)
+    parent = first(req["parent_id"])
+    db.log_event(request_id, "step", f"{first(helper_id)} really can't make it; taken off and still looking for "
+                 "someone else.")
+    channels.send(helper_id, f"Okay, you're off it. Please text {parent} right now to let them know. I've told "
+                             f"{parent} too, and I'm still looking for someone else.{CALENDAR_NOTE}",
+                  request_id=request_id)
+    channels.send(req["parent_id"], f"Heads up: {first(helper_id)} really can't make it {_when(req)}. I'm still "
+                                    f"looking for someone else in your village and will let you know as soon as "
+                                    f"someone says yes. {first(helper_id)} should be texting you too.",
+                  request_id=request_id)
+    if _outstanding(request_id) == 0:
+        await send_wave(request_id)
 
 
 async def cancel_anyway(request_id: int, helper_id: str) -> None:

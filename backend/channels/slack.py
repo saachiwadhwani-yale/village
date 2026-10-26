@@ -379,6 +379,14 @@ class SlackChannel:
             onboarding.calendar_connected(user_id, label)
             await self.publish_home(slack_id)
 
+        @app.view("edit_emergency")
+        async def on_emergency(ack, body, view):
+            await ack()
+            text = (view["state"]["values"]["text"]["v"].get("value") or "").strip()[:300]
+            user_id, _ = await self.user_for(body["user"]["id"])
+            db.run("UPDATE users SET emergency_contact = ? WHERE id = ?", text, user_id)
+            await self.publish_home(body["user"]["id"])
+
         @app.view("edit_availability")
         async def on_availability(ack, body, view):
             await ack()
@@ -423,6 +431,10 @@ class SlackChannel:
         elif verb in ("add_kid", "add_calendar", "edit_availability"):
             await self._open_form(body["trigger_id"], {"add_kid": "kid", "add_calendar": "calendar",
                                                        "edit_availability": "availability"}[verb], user_id)
+            return
+        elif verb == "edit_emergency":
+            await self.client.views_open(trigger_id=body["trigger_id"], view=_emergency_modal(
+                db.one("SELECT emergency_contact FROM users WHERE id = ?", user_id)["emergency_contact"]))
             return
         elif verb == "edit_kid":
             kid = db.one("SELECT * FROM kids WHERE id = ? AND parent_id = ?", arg, user_id)
@@ -524,6 +536,10 @@ def _home_blocks(user_id: str, note: str | None) -> list[dict]:
             blocks.append(_section(f"{_esc(k['name'])}, {k['age']}{notes}",
                                    _menu(f"home_kid_{k['id']}", [(f"Edit {k['name']}", f"edit_kid:{k['id']}"),
                                                                   (f"Remove {k['name']}", f"remove_kid:{k['id']}")])))
+        emergency = _esc(u["emergency_contact"]) if u["emergency_contact"] else "_Not set yet_"
+        blocks.append(_section(f"*🚨 Emergency contact*\n{emergency}\n_Only the classmate who says yes gets this._",
+                               _button("Edit" if u["emergency_contact"] else "Add", "home_edit_emergency",
+                                       "edit_emergency")))
 
         blocks += [{"type": "divider"},
                    _section("*Your village*", _button("Add people", "home_add_people", "add_villagers")),
@@ -656,6 +672,17 @@ def _calendar_modal(metadata: str = "") -> dict:
                                             "placeholder": {"type": "plain_text", "text": "https://… or webcal://…"}}),
         _context(CALENDAR_HELP),
     ], submit="Connect", metadata=metadata)
+
+
+def _emergency_modal(current: str) -> dict:
+    element = {"type": "plain_text_input", "multiline": True, "max_length": 300,
+               "placeholder": {"type": "plain_text", "text": "e.g. Call or text me at (203) 555-0142. Backup: my partner Dev."}}
+    if current:
+        element["initial_value"] = current
+    return _modal("edit_emergency", "Emergency contact", [
+        _input("text", "In an emergency, how should a helper reach you?", element,
+               hint="A phone number, and anything else they should know. Only the classmate who says yes gets this."),
+    ])
 
 
 def _availability_modal(current: str, metadata: str = "") -> dict:

@@ -79,6 +79,7 @@ export interface User {
   onboarding: string | null
   invited_to: string[]
   on_slack: boolean
+  emergency_contact: string
 }
 
 export type PauseMode = 'today' | 'week' | 'indefinite' | 'resume'

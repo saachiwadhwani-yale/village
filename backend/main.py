@@ -151,7 +151,7 @@ def _user(row) -> User:
         help_count_week=row["help_count_week"], help_count_total=row["help_count_total"],
         paused=bool(row["paused_until"]) and row["paused_until"] > db.now().strftime("%Y-%m-%dT%H:%M"),
         paused_until=("indefinite" if row["paused_until"] == coordinator.PAUSE_FOREVER else row["paused_until"]),
-        onboarding=row["onboarding"], on_slack=bool(row["slack_id"]),
+        onboarding=row["onboarding"], on_slack=bool(row["slack_id"]), emergency_contact=row["emergency_contact"],
         invited_to=[r["parent_id"] for r in db.all_(
             "SELECT parent_id FROM village WHERE villager_id = ? AND status = 'pending'", uid)],
     )
@@ -318,6 +318,14 @@ def remove_calendar(user_id: str, cal_id: int) -> User:
     row = _user_or_404(user_id)
     db.run("DELETE FROM calendars WHERE id = ? AND user_id = ?", cal_id, user_id)
     return _user(row)
+
+
+@app.put("/api/users/{user_id}/emergency")
+def set_emergency(user_id: str, body: SendMessage) -> User:
+    """A parent's emergency instructions for whoever helps (only shared with a helper who said yes)."""
+    _user_or_404(user_id)
+    db.run("UPDATE users SET emergency_contact = ? WHERE id = ?", body.text.strip()[:300], user_id)
+    return _user(_user_or_404(user_id))
 
 
 @app.put("/api/users/{user_id}/availability")

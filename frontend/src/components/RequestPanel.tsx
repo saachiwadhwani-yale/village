@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ASK_LABEL, STATUS_LABEL, clock, span } from '../format'
-import type { CareRequest, TraceEvent } from '../types'
+import { ASK_LABEL, STATUS_LABEL, clock, dollars, span, tokens } from '../format'
+import type { CareRequest, TraceEvent, UsageRow, UsageSummary } from '../types'
 
 interface Props {
   requests: CareRequest[]
   events: TraceEvent[]
+  usage: UsageSummary | null
 }
 
 const AGENT_NAMES: Record<string, string> = {
@@ -14,10 +15,11 @@ const AGENT_NAMES: Record<string, string> = {
   dispatch: 'Dispatch agent',
 }
 
-export function RequestPanel({ requests, events }: Props) {
+export function RequestPanel({ requests, events, usage }: Props) {
   const [picked, setPicked] = useState<number | null>(null)
   const req = requests.find((r) => r.id === picked) ?? requests[0]
   const trace = req ? events.filter((e) => e.request_id === req.id) : []
+  const cost = req && usage ? usage.by_request[String(req.id)] : undefined
 
   return (
     <div>
@@ -110,9 +112,55 @@ export function RequestPanel({ requests, events }: Props) {
             ))}
           </ol>
 
+          {cost && (
+            <>
+              <h3>This request's tokens and cost</h3>
+              <CostRow row={cost} />
+            </>
+          )}
         </>
       )}
 
+      {usage && usage.total.runs > 0 && (
+        <>
+          <h3>All agent runs so far</h3>
+          <table className="usage">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Runs</th>
+                <th>Input</th>
+                <th>Cached</th>
+                <th>Output</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...usage.by_agent, usage.total].map((r) => (
+                <tr key={r.agent} className={r.agent === 'total' ? 'total' : ''}>
+                  <td>{r.agent === 'total' ? 'Total' : (AGENT_NAMES[r.agent] ?? r.agent)}</td>
+                  <td>{r.runs}</td>
+                  <td>{tokens(r.input_tokens)}</td>
+                  <td>{tokens(r.cached_tokens)}</td>
+                  <td>{tokens(r.output_tokens)}</td>
+                  <td>{dollars(r.cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CostRow({ row }: { row: UsageRow }) {
+  return (
+    <div className="cost-row">
+      <div><b>{row.runs}</b> agent runs</div>
+      <div><b>{tokens(row.input_tokens)}</b> in ({tokens(row.cached_tokens)} cached)</div>
+      <div><b>{tokens(row.output_tokens)}</b> out</div>
+      <div><b>{dollars(row.cost_usd)}</b></div>
     </div>
   )
 }

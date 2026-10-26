@@ -152,7 +152,8 @@ async def test_a_day_ahead_village_looks_for_cover_first_and_the_helper_can_stil
     await coordinator.helper_back_out(rid, "sam")
     assert request(rid)["status"] == "booked" and request(rid)["covering"] == "sam"     # still on, looking quietly
     assert "If no one can, you can still cancel" in messages("sam")[-1]["text"]
-    assert len(messages("priya")) == parent_msgs                                        # parent not bothered
+    assert len(messages("priya")) == parent_msgs + 1                                    # parent told right away
+    assert "Sam may not be able to make it" in last("priya")["text"] and "still scheduled" in last("priya")["text"]
 
     # No one can cover: Sam is offered a real cancel, which tells Priya.
     await coordinator.decline(rid, "hannah")
@@ -173,7 +174,7 @@ async def test_a_day_ahead_cover_found_means_the_parent_just_gets_a_note():
     await coordinator.helper_back_out(rid, "sam")
     await coordinator.accept(rid, "hannah")
     assert request(rid)["helper_id"] == "hannah"
-    assert "Sam couldn't make it after all, so Hannah is covering instead" in last("priya")["text"]
+    assert "Hannah is covering instead of Sam" in last("priya")["text"]
 
 
 async def test_backing_out_less_than_a_day_ahead_asks_to_confirm_first():
@@ -204,13 +205,14 @@ async def test_inside_the_cutoff_village_quietly_finds_cover_first():
     assert request(rid)["status"] == "booked" and request(rid)["helper_id"] == "hannah"   # still on
     assert request(rid)["covering"] == "hannah"
     assert {v for v, st in asks(rid).items() if st == "asked"} == {"aisha", "diego", "mei"}   # everyone free, at once
-    assert "quietly check" in messages("hannah")[-1]["text"]
-    assert len(messages("priya")) == parent_msgs                    # the parent isn't told yet
+    assert "I've let Priya know you might not make it" in messages("hannah")[-1]["text"]
+    assert len(messages("priya")) == parent_msgs + 1                # the parent is told it's being handled
+    assert "still scheduled" in last("priya")["text"] and "asking others" in last("priya")["text"]
 
     await coordinator.accept(rid, "aisha")
     assert request(rid)["helper_id"] == "aisha" and request(rid)["covering"] is None
     assert "you're off the hook" in last("hannah")["text"]
-    assert "Hannah couldn't make it after all, so Aisha is covering instead. Nothing you need to do." in \
+    assert "Good news: Aisha is covering instead of Hannah. Nothing you need to do." in \
         last("priya")["text"]
     assert "Peanut allergy" in last("aisha")["text"]
 
@@ -397,3 +399,30 @@ async def test_one_kid_books_one_helper_only():
     await coordinator.send_wave(rid)
     await coordinator.accept(rid, "hannah")
     assert request(rid)["support_search"] == 0 and asks(rid)["aisha"] == "filled"
+
+
+async def test_helper_gets_the_parents_emergency_contact_only_after_saying_yes():
+    db.run("UPDATE users SET emergency_contact = 'Call Priya at (203) 555-0142' WHERE id = 'priya'")
+    rid = make_request(verdicts={"hannah": "available", "aisha": "maybe"})
+    await coordinator.send_wave(rid)
+    assert not any("555-0142" in m["text"] for m in messages("hannah") + messages("aisha"))   # not in the ask
+    await coordinator.accept(rid, "hannah")
+    assert "In an emergency: Call Priya at (203) 555-0142" in last("hannah")["text"]
+    assert not any("555-0142" in m["text"] for m in messages("aisha"))
+
+
+async def test_helper_who_really_cant_come_is_taken_off_and_the_parent_told():
+    """While Village looks for cover, "I really can't make it" takes the helper off right away (any notice):
+    they're asked to text the parent, the parent is told, and the search goes on."""
+    rid = make_request(verdicts={"hannah": "available", "aisha": "maybe", "diego": "maybe"})   # today, under 6h
+    await coordinator.send_wave(rid)
+    await coordinator.accept(rid, "hannah")
+    await coordinator.handle_button("hannah", "helper_cover", rid, None)
+    assert "I really can't make it" in last("hannah")["buttons"]
+    await coordinator.handle_button("hannah", "helper_really_cant", rid, last("hannah")["id"])
+    r = request(rid)
+    assert r["status"] == "searching" and r["helper_id"] is None and asks(rid)["hannah"] == "withdrew"
+    assert "Please text Priya right now" in last("hannah")["text"]
+    assert "Hannah really can't make it" in last("priya")["text"] and "still looking" in last("priya")["text"]
+    await coordinator.accept(rid, "aisha")                             # the search carries on as usual
+    assert request(rid)["helper_id"] == "aisha"

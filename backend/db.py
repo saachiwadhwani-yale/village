@@ -27,7 +27,8 @@ CREATE TABLE users (
     slack_id TEXT UNIQUE,             -- set for people who use Village through Slack
     onboarding TEXT,                  -- setup step (see onboarding.py): NULL, role, kid, kid_notes:<ids>, kid_medical:<ids>, village, calendar_helper, calendar_joined, done
     availability_text TEXT NOT NULL DEFAULT '',
-    availability_parsed TEXT          -- JSON ParsedAvailability, or NULL
+    availability_parsed TEXT,         -- JSON ParsedAvailability, or NULL
+    emergency_contact TEXT NOT NULL DEFAULT ''  -- parents: how a helper reaches them in an emergency
 );
 CREATE TABLE kids (
     id TEXT PRIMARY KEY,
@@ -184,10 +185,11 @@ def reset(fresh_setup: bool = False) -> None:
             parsed = u.get("availability_parsed")
             conn.execute(
                 "INSERT INTO users (id, name, program, color, is_parent, help_count_week, help_count_total,"
-                " availability_text, availability_parsed, onboarding) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " availability_text, availability_parsed, onboarding, emergency_contact) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (u["id"], u["name"], u["program"], u["color"], int(u["is_parent"]),
                  u.get("help_count_week", 0), u.get("help_count_total", 0), u.get("availability_text", ""),
-                 json.dumps(parsed) if parsed else None, None if u["id"] in new else "done"),
+                 json.dumps(parsed) if parsed else None, None if u["id"] in new else "done",
+                 "" if u["id"] in new else u.get("emergency_contact", "")),
             )
             for c in u.get("calendars", []):
                 conn.execute(
@@ -249,7 +251,7 @@ def ensure() -> None:
 # Columns added after the first version, so an existing village.db keeps working.
 _ADDED_COLUMNS = {
     "users": {"help_count_total": "INTEGER NOT NULL DEFAULT 0", "paused_until": "TEXT", "slack_id": "TEXT",
-              "onboarding": "TEXT"},
+              "onboarding": "TEXT", "emergency_contact": "TEXT NOT NULL DEFAULT ''"},
     "kids": {"allergies": "TEXT NOT NULL DEFAULT ''"},
     "requests": {"covering": "TEXT", "extra_kid_ids": "TEXT", "support_id": "TEXT",
                  "support_search": "INTEGER NOT NULL DEFAULT 0", "wave_wait_min": "INTEGER"},

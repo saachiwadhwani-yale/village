@@ -3,7 +3,7 @@ import { api } from './api'
 import { PeopleGuide } from './components/PeopleGuide'
 import { RequestPanel } from './components/RequestPanel'
 import { SlackWindow } from './components/SlackWindow'
-import type { CareRequest, TraceEvent, User } from './types'
+import type { CareRequest, TraceEvent, UsageSummary, User } from './types'
 
 export default function App() {
   const [showPanel, setShowPanel] = useState(true)
@@ -15,6 +15,7 @@ export default function App() {
   const [seen, setSeen] = useState<Record<string, number>>({})
   const [requests, setRequests] = useState<CareRequest[]>([])
   const [events, setEvents] = useState<TraceEvent[]>([])
+  const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [offline, setOffline] = useState(false)
   const [resetting, setResetting] = useState(false)
 
@@ -28,9 +29,10 @@ export default function App() {
   useEffect(() => {
     const tick = async () => {
       try {
-        const [r, e, i] = await Promise.all([api.requests(), api.events(), api.inbox()])
+        const [r, e, u, i] = await Promise.all([api.requests(), api.events(), api.usage(), api.inbox()])
         setRequests(r)
         setEvents(e)
+        setUsage(u)
         setInbox(i)
         setOffline(false)
       } catch {
@@ -126,7 +128,7 @@ export default function App() {
                 <PeopleGuide users={users} left={left} right={right}
                   onOpen={(w, id) => (w === 1 ? setLeft(id) : setRight(id))} />
               ) : (
-                <RequestPanel requests={requests} events={events} />
+                <RequestPanel requests={requests} events={events} usage={usage} />
               )}
             </section>
           )}

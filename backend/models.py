@@ -204,6 +204,7 @@ class User(BaseModel):
     paused: bool = False
     onboarding: str | None = None
     on_slack: bool = False
+    emergency_contact: str = ""
     invited_to: list[str] = Field(default=[], description="Parents whose village invite this person hasn't answered.")
     paused_until: str | None = Field(default=None, description="Local ISO time, or 'indefinite'.")
 
